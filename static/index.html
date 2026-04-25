@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>KSP Mission Control</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #0b1020; color: #e6e9f2; display: grid; place-items: center; height: 100vh; margin: 0; }
+    main { text-align: center; }
+    h1 { font-weight: 400; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.7; margin: 0 0 0.5em; font-size: 0.9rem; }
+    .ut { font-family: ui-monospace, monospace; font-size: 2.25rem; font-variant-numeric: tabular-nums; }
+    .status { margin-top: 1em; opacity: 0.5; font-size: 0.8rem; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Universal Time</h1>
+    <div class="ut" id="ut">—</div>
+    <div class="status" id="status">connecting…</div>
+  </main>
+  <script>
+    const utEl = document.getElementById("ut");
+    const statusEl = document.getElementById("status");
+    const ws = new WebSocket(`ws://${location.host}/ws`);
+    ws.onopen = () => { statusEl.textContent = "connected"; };
+    ws.onclose = () => { statusEl.textContent = "disconnected"; };
+    ws.onerror = () => { statusEl.textContent = "error"; };
+    // Calendar constants (secs_per_day, secs_per_year) come from the server,
+    // which detects Kerbin vs Earth time from the active KSP install.
+    const SECS_PER_HOUR = 3600;
+    function formatUT(ut, secsPerDay, secsPerYear) {
+      const years = Math.floor(ut / secsPerYear);
+      let r = ut - years * secsPerYear;
+      const days = Math.floor(r / secsPerDay); r -= days * secsPerDay;
+      const hours = Math.floor(r / SECS_PER_HOUR); r -= hours * SECS_PER_HOUR;
+      const minutes = Math.floor(r / 60);
+      const seconds = Math.floor(r - minutes * 60);
+      return `Year ${years + 1}, Day ${days + 1} - ${hours}h, ${minutes}m, ${seconds}s`;
+    }
+    ws.onmessage = (ev) => {
+      const { ut, secs_per_day, secs_per_year } = JSON.parse(ev.data);
+      utEl.textContent = formatUT(ut, secs_per_day, secs_per_year);
+    };
+  </script>
+</body>
+</html>
