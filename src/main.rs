@@ -6,6 +6,8 @@ use axum::{Router, routing::get};
 use krpc_client::Client;
 use tokio::sync::broadcast;
 use tower_http::services::ServeDir;
+use tracing::info;
+use tracing_subscriber::EnvFilter;
 
 use crate::krpc::{Calendar, TelemetryFrame, detect_calendar, run_ut_stream};
 use crate::web::ws_handler;
@@ -23,6 +25,10 @@ pub struct AppState {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
+        .init();
+
     let krpc = Client::new(
         "ksp-mission-control",
         KRPC_HOST,
@@ -30,12 +36,13 @@ async fn main() -> Result<()> {
         KRPC_STREAM_PORT,
     )
     .await?;
-    eprintln!("connected to kRPC at {KRPC_HOST}:{KRPC_RPC_PORT}");
+    info!(host = KRPC_HOST, port = KRPC_RPC_PORT, "connected to kRPC");
 
     let calendar = detect_calendar(krpc.clone()).await?;
-    eprintln!(
-        "calendar: {} s/day, {} s/year",
-        calendar.secs_per_day, calendar.secs_per_year
+    info!(
+        secs_per_day = calendar.secs_per_day,
+        secs_per_year = calendar.secs_per_year,
+        "calendar detected"
     );
 
     let (telemetry_tx, _) = broadcast::channel::<TelemetryFrame>(64);
@@ -50,7 +57,7 @@ async fn main() -> Result<()> {
         });
 
     let listener = tokio::net::TcpListener::bind(BIND_ADDR).await?;
-    eprintln!("listening on http://{BIND_ADDR}");
+    info!("listening on http://{BIND_ADDR}");
     axum::serve(listener, app).await?;
     Ok(())
 }

@@ -4,6 +4,7 @@ use anyhow::Result;
 use krpc_client::{Client, services::space_center::SpaceCenter};
 use serde::Serialize;
 use tokio::sync::broadcast;
+use tracing::{error, warn};
 
 const STREAM_RATE_HZ: f32 = 5.0;
 
@@ -37,8 +38,8 @@ pub async fn detect_calendar(krpc: Arc<Client>) -> Result<Calendar> {
     } else if bodies.contains_key("Earth") {
         Ok(EARTH_CALENDAR)
     } else {
-        eprintln!(
-            "warning: neither Kerbin nor Earth found in SpaceCenter.Bodies; \
+        warn!(
+            "neither Kerbin nor Earth found in SpaceCenter.Bodies; \
              defaulting to Kerbin calendar"
         );
         Ok(KERBIN_CALENDAR)
@@ -47,7 +48,7 @@ pub async fn detect_calendar(krpc: Arc<Client>) -> Result<Calendar> {
 
 pub async fn run_ut_stream(krpc: Arc<Client>, tx: broadcast::Sender<TelemetryFrame>) {
     if let Err(e) = ut_stream_loop(krpc, tx).await {
-        eprintln!("ut stream task ended: {e:#}");
+        error!("ut stream task ended: {e:#}");
     }
 }
 
