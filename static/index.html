@@ -37,8 +37,10 @@
       return `Year ${years + 1}, Day ${days + 1} - ${hours}h, ${minutes}m, ${seconds}s`;
     }
     ws.onmessage = (ev) => {
-      const { ut, secs_per_day, secs_per_year } = JSON.parse(ev.data);
-      utEl.textContent = formatUT(ut, secs_per_day, secs_per_year);
+      const frame = JSON.parse(ev.data);
+      if (frame.kind === "ut") {
+        utEl.textContent = formatUT(frame.value, frame.secs_per_day, frame.secs_per_year);
+      }
     };
   </script>
 </body>

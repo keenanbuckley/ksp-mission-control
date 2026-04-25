@@ -7,7 +7,7 @@ use krpc_client::Client;
 use tokio::sync::broadcast;
 use tower_http::services::ServeDir;
 
-use crate::krpc::{Calendar, detect_calendar, run_ut_stream};
+use crate::krpc::{Calendar, TelemetryFrame, detect_calendar, run_ut_stream};
 use crate::web::ws_handler;
 
 const KRPC_HOST: &str = "127.0.0.1";
@@ -17,7 +17,7 @@ const BIND_ADDR: &str = "127.0.0.1:8080";
 
 #[derive(Clone)]
 pub struct AppState {
-    pub telemetry_tx: broadcast::Sender<f64>,
+    pub telemetry_tx: broadcast::Sender<TelemetryFrame>,
     pub calendar: Calendar,
 }
 
@@ -38,7 +38,7 @@ async fn main() -> Result<()> {
         calendar.secs_per_day, calendar.secs_per_year
     );
 
-    let (telemetry_tx, _) = broadcast::channel::<f64>(64);
+    let (telemetry_tx, _) = broadcast::channel::<TelemetryFrame>(64);
     tokio::spawn(run_ut_stream(krpc.clone(), telemetry_tx.clone()));
 
     let app = Router::new()

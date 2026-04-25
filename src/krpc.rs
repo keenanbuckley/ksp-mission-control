@@ -2,9 +2,16 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use krpc_client::{Client, services::space_center::SpaceCenter};
+use serde::Serialize;
 use tokio::sync::broadcast;
 
 const STREAM_RATE_HZ: f32 = 5.0;
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(tag = "kind", content = "value", rename_all = "snake_case")]
+pub enum TelemetryFrame {
+    Ut(f64),
+}
 
 #[derive(Clone, Copy)]
 pub struct Calendar {
@@ -38,19 +45,19 @@ pub async fn detect_calendar(krpc: Arc<Client>) -> Result<Calendar> {
     }
 }
 
-pub async fn run_ut_stream(krpc: Arc<Client>, tx: broadcast::Sender<f64>) {
+pub async fn run_ut_stream(krpc: Arc<Client>, tx: broadcast::Sender<TelemetryFrame>) {
     if let Err(e) = ut_stream_loop(krpc, tx).await {
         eprintln!("ut stream task ended: {e:#}");
     }
 }
 
-async fn ut_stream_loop(krpc: Arc<Client>, tx: broadcast::Sender<f64>) -> Result<()> {
+async fn ut_stream_loop(krpc: Arc<Client>, tx: broadcast::Sender<TelemetryFrame>) -> Result<()> {
     let space_center = SpaceCenter::new(krpc);
     let stream = space_center.get_ut_stream().await?;
     stream.set_rate(STREAM_RATE_HZ).await?;
     loop {
         stream.wait().await;
         let ut = stream.get().await?;
-        let _ = tx.send(ut);
+        let _ = tx.send(TelemetryFrame::Ut(ut));
     }
 }
