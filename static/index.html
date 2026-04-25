@@ -20,10 +20,6 @@
   <script>
     const utEl = document.getElementById("ut");
     const statusEl = document.getElementById("status");
-    const ws = new WebSocket(`ws://${location.host}/ws`);
-    ws.onopen = () => { statusEl.textContent = "connected"; };
-    ws.onclose = () => { statusEl.textContent = "disconnected"; };
-    ws.onerror = () => { statusEl.textContent = "error"; };
     // Calendar constants (secs_per_day, secs_per_year) come from the server,
     // which detects Kerbin vs Earth time from the active KSP install.
     const SECS_PER_HOUR = 3600;
@@ -36,12 +32,29 @@
       const seconds = Math.floor(r - minutes * 60);
       return `Year ${years + 1}, Day ${days + 1} - ${hours}h, ${minutes}m, ${seconds}s`;
     }
-    ws.onmessage = (ev) => {
-      const frame = JSON.parse(ev.data);
-      if (frame.kind === "ut") {
-        utEl.textContent = formatUT(frame.value, frame.secs_per_day, frame.secs_per_year);
-      }
-    };
+    const INITIAL_BACKOFF_MS = 500;
+    const MAX_BACKOFF_MS = 10000;
+    let backoffMs = INITIAL_BACKOFF_MS;
+    function connect() {
+      statusEl.textContent = "connecting…";
+      const ws = new WebSocket(`ws://${location.host}/ws`);
+      ws.onopen = () => {
+        backoffMs = INITIAL_BACKOFF_MS;
+        statusEl.textContent = "connected";
+      };
+      ws.onclose = () => {
+        statusEl.textContent = `disconnected — retrying in ${backoffMs / 1000}s`;
+        setTimeout(connect, backoffMs);
+        backoffMs = Math.min(backoffMs * 2, MAX_BACKOFF_MS);
+      };
+      ws.onmessage = (ev) => {
+        const frame = JSON.parse(ev.data);
+        if (frame.kind === "ut") {
+          utEl.textContent = formatUT(frame.value, frame.secs_per_day, frame.secs_per_year);
+        }
+      };
+    }
+    connect();
   </script>
 </body>
 </html>
