@@ -1,0 +1,2 @@
+[env]
+KRPC_SERVICES = { value = "service_definitions", relative = true }

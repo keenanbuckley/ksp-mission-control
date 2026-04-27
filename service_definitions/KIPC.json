@@ -1,0 +1,344 @@
+{
+  "KIPC": {
+    "classes": {
+      "Processor": {}
+    },
+    "enumerations": {},
+    "procedures": {
+      "GetMessages": {
+        "parameters": [],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "LIST",
+          "types": [
+            {
+              "code": "STRING"
+            }
+          ]
+        }
+      },
+      "GetPartsTagged": {
+        "parameters": [
+          {
+            "name": "vessel",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Vessel",
+              "service": "SpaceCenter"
+            }
+          },
+          {
+            "name": "tag",
+            "nullable": false,
+            "type": {
+              "code": "STRING"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "LIST",
+          "types": [
+            {
+              "code": "CLASS",
+              "name": "Part",
+              "service": "SpaceCenter"
+            }
+          ]
+        }
+      },
+      "GetProcessor": {
+        "parameters": [
+          {
+            "name": "part",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Part",
+              "service": "SpaceCenter"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "LIST",
+          "types": [
+            {
+              "code": "CLASS",
+              "name": "Processor",
+              "service": "KIPC"
+            }
+          ]
+        }
+      },
+      "GetProcessors": {
+        "parameters": [
+          {
+            "name": "vessel",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Vessel",
+              "service": "SpaceCenter"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "LIST",
+          "types": [
+            {
+              "code": "CLASS",
+              "name": "Processor",
+              "service": "KIPC"
+            }
+          ]
+        }
+      },
+      "PeekMessage": {
+        "parameters": [],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "STRING"
+        }
+      },
+      "PopMessage": {
+        "parameters": [],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "STRING"
+        }
+      },
+      "Processor_SendMessage": {
+        "parameters": [
+          {
+            "name": "this",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Processor",
+              "service": "KIPC"
+            }
+          },
+          {
+            "name": "json",
+            "nullable": false,
+            "type": {
+              "code": "STRING"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "BOOL"
+        }
+      },
+      "Processor_get_DiskSpace": {
+        "parameters": [
+          {
+            "name": "this",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Processor",
+              "service": "KIPC"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "SINT32"
+        }
+      },
+      "Processor_get_Part": {
+        "parameters": [
+          {
+            "name": "this",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Processor",
+              "service": "KIPC"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Part",
+          "service": "SpaceCenter"
+        }
+      },
+      "Processor_get_Powered": {
+        "parameters": [
+          {
+            "name": "this",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Processor",
+              "service": "KIPC"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "BOOL"
+        }
+      },
+      "Processor_get_TerminalVisible": {
+        "parameters": [
+          {
+            "name": "this",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Processor",
+              "service": "KIPC"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "BOOL"
+        }
+      },
+      "Processor_set_Powered": {
+        "parameters": [
+          {
+            "name": "this",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Processor",
+              "service": "KIPC"
+            }
+          },
+          {
+            "name": "value",
+            "nullable": false,
+            "type": {
+              "code": "BOOL"
+            }
+          }
+        ]
+      },
+      "Processor_set_TerminalVisible": {
+        "parameters": [
+          {
+            "name": "this",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Processor",
+              "service": "KIPC"
+            }
+          },
+          {
+            "name": "value",
+            "nullable": false,
+            "type": {
+              "code": "BOOL"
+            }
+          }
+        ]
+      },
+      "ResolveBodies": {
+        "parameters": [
+          {
+            "name": "bodyIds",
+            "nullable": false,
+            "type": {
+              "code": "LIST",
+              "types": [
+                {
+                  "code": "SINT32"
+                }
+              ]
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "LIST",
+          "types": [
+            {
+              "code": "CLASS",
+              "name": "CelestialBody",
+              "service": "SpaceCenter"
+            }
+          ]
+        }
+      },
+      "ResolveBody": {
+        "parameters": [
+          {
+            "name": "bodyId",
+            "nullable": false,
+            "type": {
+              "code": "SINT32"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "CelestialBody",
+          "service": "SpaceCenter"
+        }
+      },
+      "ResolveVessel": {
+        "parameters": [
+          {
+            "name": "vesselGuid",
+            "nullable": false,
+            "type": {
+              "code": "STRING"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Vessel",
+          "service": "SpaceCenter"
+        }
+      },
+      "ResolveVessels": {
+        "parameters": [
+          {
+            "name": "vesselGuids",
+            "nullable": false,
+            "type": {
+              "code": "LIST",
+              "types": [
+                {
+                  "code": "STRING"
+                }
+              ]
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "LIST",
+          "types": [
+            {
+              "code": "CLASS",
+              "name": "Vessel",
+              "service": "SpaceCenter"
+            }
+          ]
+        }
+      },
+      "get_CountMessages": {
+        "parameters": [],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "SINT32"
+        }
+      }
+    }
+  }
+}

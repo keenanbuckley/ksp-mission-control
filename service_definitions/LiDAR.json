@@ -1,0 +1,84 @@
+{
+  "LiDAR": {
+    "classes": {
+      "Laser": {
+        "documentation": "<doc>\n<summary>\nA LaserDist laser.\n</summary>\n</doc>"
+      }
+    },
+    "documentation": "<doc>\n<summary>\nLaserDist service.\n</summary>\n</doc>",
+    "enumerations": {},
+    "procedures": {
+      "Laser": {
+        "documentation": "<doc>\n<summary>\nGet a LaserDist part.\n</summary>\n</doc>",
+        "parameters": [
+          {
+            "name": "part",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Part",
+              "service": "SpaceCenter"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Laser",
+          "service": "LiDAR"
+        }
+      },
+      "Laser_get_Cloud": {
+        "documentation": "<doc>\n<summary>\nGet the point cloud from the LiDAR.\nReturns an empty list on failure.\n</summary>\n</doc>",
+        "parameters": [
+          {
+            "name": "this",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Laser",
+              "service": "LiDAR"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "LIST",
+          "types": [
+            {
+              "code": "DOUBLE"
+            }
+          ]
+        }
+      },
+      "Laser_get_Part": {
+        "documentation": "<doc>\n<summary>\nGet the part containing this LiDAR.\n</summary>\n</doc>",
+        "parameters": [
+          {
+            "name": "this",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Laser",
+              "service": "LiDAR"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Part",
+          "service": "SpaceCenter"
+        }
+      },
+      "get_Available": {
+        "documentation": "<doc>\n<summary>\nCheck if the LaserDist API is available.\n</summary>\n</doc>",
+        "parameters": [],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "BOOL"
+        }
+      }
+    }
+  }
+}

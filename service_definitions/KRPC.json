@@ -1,0 +1,1568 @@
+{
+  "KRPC": {
+    "classes": {
+      "Expression": {
+        "documentation": "<doc>\n<summary>\nA server side expression.\n</summary>\n</doc>"
+      },
+      "Type": {
+        "documentation": "<doc>\n<summary>\nA server side expression.\n</summary>\n</doc>"
+      }
+    },
+    "documentation": "<doc>\n<summary>\nMain kRPC service, used by clients to interact with basic server functionality.\n</summary>\n</doc>",
+    "enumerations": {
+      "GameScene": {
+        "documentation": "<doc>\n<summary>\nThe game scene. See <see cref=\"M:KRPC.CurrentGameScene\" />.\n</summary>\n</doc>",
+        "values": [
+          {
+            "documentation": "<doc>\n<summary>\nThe game scene showing the Kerbal Space Center buildings.\n</summary>\n</doc>",
+            "name": "SpaceCenter",
+            "value": 0
+          },
+          {
+            "documentation": "<doc>\n<summary>\nThe game scene showing a vessel in flight (or on the launchpad/runway).\n</summary>\n</doc>",
+            "name": "Flight",
+            "value": 1
+          },
+          {
+            "documentation": "<doc>\n<summary>\nThe tracking station.\n</summary>\n</doc>",
+            "name": "TrackingStation",
+            "value": 2
+          },
+          {
+            "documentation": "<doc>\n<summary>\nThe Vehicle Assembly Building.\n</summary>\n</doc>",
+            "name": "EditorVAB",
+            "value": 3
+          },
+          {
+            "documentation": "<doc>\n<summary>\nThe Space Plane Hangar.\n</summary>\n</doc>",
+            "name": "EditorSPH",
+            "value": 4
+          }
+        ]
+      }
+    },
+    "procedures": {
+      "AddEvent": {
+        "documentation": "<doc>\n<summary>\nCreate an event from a server side expression.\n</summary>\n</doc>",
+        "parameters": [
+          {
+            "name": "expression",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "EVENT"
+        }
+      },
+      "AddStream": {
+        "documentation": "<doc>\n<summary>\nAdd a streaming request and return its identifier.\n</summary>\n</doc>",
+        "parameters": [
+          {
+            "name": "call",
+            "nullable": false,
+            "type": {
+              "code": "PROCEDURE_CALL"
+            }
+          },
+          {
+            "name": "start",
+            "nullable": false,
+            "type": {
+              "code": "BOOL"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "STREAM"
+        }
+      },
+      "Expression_static_Add": {
+        "documentation": "<doc>\n<summary>\nNumerical addition.\n</summary>\n<param name=\"arg0\"></param>\n<param name=\"arg1\"></param>\n</doc>",
+        "parameters": [
+          {
+            "name": "arg0",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          },
+          {
+            "name": "arg1",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Expression",
+          "service": "KRPC"
+        }
+      },
+      "Expression_static_Aggregate": {
+        "documentation": "<doc>\n<summary>\nApplies an accumulator function over a sequence.\n</summary>\n<returns>The accumulated value.</returns>\n<param name=\"arg\">The collection.</param>\n<param name=\"func\">The accumulator function.</param>\n</doc>",
+        "parameters": [
+          {
+            "name": "arg",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          },
+          {
+            "name": "func",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Expression",
+          "service": "KRPC"
+        }
+      },
+      "Expression_static_AggregateWithSeed": {
+        "documentation": "<doc>\n<summary>\nApplies an accumulator function over a sequence, with a given seed.\n</summary>\n<returns>The accumulated value.</returns>\n<param name=\"arg\">The collection.</param>\n<param name=\"seed\">The seed value.</param>\n<param name=\"func\">The accumulator function.</param>\n</doc>",
+        "parameters": [
+          {
+            "name": "arg",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          },
+          {
+            "name": "seed",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          },
+          {
+            "name": "func",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Expression",
+          "service": "KRPC"
+        }
+      },
+      "Expression_static_All": {
+        "documentation": "<doc>\n<summary>\nDetermine whether all items in a collection satisfy a boolean predicate.\n</summary>\n<returns>Whether all items satisfy the predicate.</returns>\n<param name=\"arg\">The collection.</param>\n<param name=\"predicate\">The predicate function.</param>\n</doc>",
+        "parameters": [
+          {
+            "name": "arg",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          },
+          {
+            "name": "predicate",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Expression",
+          "service": "KRPC"
+        }
+      },
+      "Expression_static_And": {
+        "documentation": "<doc>\n<summary>\nBoolean and operator.\n</summary>\n<param name=\"arg0\"></param>\n<param name=\"arg1\"></param>\n</doc>",
+        "parameters": [
+          {
+            "name": "arg0",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          },
+          {
+            "name": "arg1",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Expression",
+          "service": "KRPC"
+        }
+      },
+      "Expression_static_Any": {
+        "documentation": "<doc>\n<summary>\nDetermine whether any item in a collection satisfies a boolean predicate.\n</summary>\n<returns>Whether any item satisfies the predicate.</returns>\n<param name=\"arg\">The collection.</param>\n<param name=\"predicate\">The predicate function.</param>\n</doc>",
+        "parameters": [
+          {
+            "name": "arg",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          },
+          {
+            "name": "predicate",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Expression",
+          "service": "KRPC"
+        }
+      },
+      "Expression_static_Average": {
+        "documentation": "<doc>\n<summary>\nMinimum of all elements in a collection.\n</summary>\n<returns>The minimum elements in the collection.</returns>\n<param name=\"arg\">The list or set.</param>\n</doc>",
+        "parameters": [
+          {
+            "name": "arg",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Expression",
+          "service": "KRPC"
+        }
+      },
+      "Expression_static_Call": {
+        "documentation": "<doc>\n<summary>\nAn RPC call.\n</summary>\n<param name=\"call\"></param>\n</doc>",
+        "parameters": [
+          {
+            "name": "call",
+            "nullable": false,
+            "type": {
+              "code": "PROCEDURE_CALL"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Expression",
+          "service": "KRPC"
+        }
+      },
+      "Expression_static_Cast": {
+        "documentation": "<doc>\n<summary>\nPerform a cast to the given type.\n</summary>\n<param name=\"arg\"></param>\n<param name=\"type\">Type to cast the argument to.</param>\n</doc>",
+        "parameters": [
+          {
+            "name": "arg",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          },
+          {
+            "name": "type",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Type",
+              "service": "KRPC"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Expression",
+          "service": "KRPC"
+        }
+      },
+      "Expression_static_Concat": {
+        "documentation": "<doc>\n<summary>\nConcatenate two sequences.\n</summary>\n<returns>The first sequence followed by the second sequence.</returns>\n<param name=\"arg1\">The first sequence.</param>\n<param name=\"arg2\">The second sequence.</param>\n</doc>",
+        "parameters": [
+          {
+            "name": "arg1",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          },
+          {
+            "name": "arg2",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Expression",
+          "service": "KRPC"
+        }
+      },
+      "Expression_static_ConstantBool": {
+        "documentation": "<doc>\n<summary>\nA constant value of boolean type.\n</summary>\n<param name=\"value\"></param>\n</doc>",
+        "parameters": [
+          {
+            "name": "value",
+            "nullable": false,
+            "type": {
+              "code": "BOOL"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Expression",
+          "service": "KRPC"
+        }
+      },
+      "Expression_static_ConstantDouble": {
+        "documentation": "<doc>\n<summary>\nA constant value of double precision floating point type.\n</summary>\n<param name=\"value\"></param>\n</doc>",
+        "parameters": [
+          {
+            "name": "value",
+            "nullable": false,
+            "type": {
+              "code": "DOUBLE"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Expression",
+          "service": "KRPC"
+        }
+      },
+      "Expression_static_ConstantFloat": {
+        "documentation": "<doc>\n<summary>\nA constant value of single precision floating point type.\n</summary>\n<param name=\"value\"></param>\n</doc>",
+        "parameters": [
+          {
+            "name": "value",
+            "nullable": false,
+            "type": {
+              "code": "FLOAT"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Expression",
+          "service": "KRPC"
+        }
+      },
+      "Expression_static_ConstantInt": {
+        "documentation": "<doc>\n<summary>\nA constant value of integer type.\n</summary>\n<param name=\"value\"></param>\n</doc>",
+        "parameters": [
+          {
+            "name": "value",
+            "nullable": false,
+            "type": {
+              "code": "SINT32"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Expression",
+          "service": "KRPC"
+        }
+      },
+      "Expression_static_ConstantString": {
+        "documentation": "<doc>\n<summary>\nA constant value of string type.\n</summary>\n<param name=\"value\"></param>\n</doc>",
+        "parameters": [
+          {
+            "name": "value",
+            "nullable": false,
+            "type": {
+              "code": "STRING"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Expression",
+          "service": "KRPC"
+        }
+      },
+      "Expression_static_Contains": {
+        "documentation": "<doc>\n<summary>\nDetermine if a collection contains a value.\n</summary>\n<returns>Whether the collection contains a value.</returns>\n<param name=\"arg\">The collection.</param>\n<param name=\"value\">The value to look for.</param>\n</doc>",
+        "parameters": [
+          {
+            "name": "arg",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          },
+          {
+            "name": "value",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Expression",
+          "service": "KRPC"
+        }
+      },
+      "Expression_static_Count": {
+        "documentation": "<doc>\n<summary>\nNumber of elements in a collection.\n</summary>\n<returns>The number of elements in the collection.</returns>\n<param name=\"arg\">The list, set or dictionary.</param>\n</doc>",
+        "parameters": [
+          {
+            "name": "arg",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Expression",
+          "service": "KRPC"
+        }
+      },
+      "Expression_static_CreateDictionary": {
+        "documentation": "<doc>\n<summary>\nConstruct a dictionary, from a list of corresponding keys and values.\n</summary>\n<returns>The dictionary.</returns>\n<param name=\"keys\">The keys. Should all be of the same type.</param>\n<param name=\"values\">The values. Should all be of the same type.</param>\n</doc>",
+        "parameters": [
+          {
+            "name": "keys",
+            "nullable": false,
+            "type": {
+              "code": "LIST",
+              "types": [
+                {
+                  "code": "CLASS",
+                  "name": "Expression",
+                  "service": "KRPC"
+                }
+              ]
+            }
+          },
+          {
+            "name": "values",
+            "nullable": false,
+            "type": {
+              "code": "LIST",
+              "types": [
+                {
+                  "code": "CLASS",
+                  "name": "Expression",
+                  "service": "KRPC"
+                }
+              ]
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Expression",
+          "service": "KRPC"
+        }
+      },
+      "Expression_static_CreateList": {
+        "documentation": "<doc>\n<summary>\nConstruct a list.\n</summary>\n<returns>The list.</returns>\n<param name=\"values\">The value. Should all be of the same type.</param>\n</doc>",
+        "parameters": [
+          {
+            "name": "values",
+            "nullable": false,
+            "type": {
+              "code": "LIST",
+              "types": [
+                {
+                  "code": "CLASS",
+                  "name": "Expression",
+                  "service": "KRPC"
+                }
+              ]
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Expression",
+          "service": "KRPC"
+        }
+      },
+      "Expression_static_CreateSet": {
+        "documentation": "<doc>\n<summary>\nConstruct a set.\n</summary>\n<returns>The set.</returns>\n<param name=\"values\">The values. Should all be of the same type.</param>\n</doc>",
+        "parameters": [
+          {
+            "name": "values",
+            "nullable": false,
+            "type": {
+              "code": "SET",
+              "types": [
+                {
+                  "code": "CLASS",
+                  "name": "Expression",
+                  "service": "KRPC"
+                }
+              ]
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Expression",
+          "service": "KRPC"
+        }
+      },
+      "Expression_static_CreateTuple": {
+        "documentation": "<doc>\n<summary>\nConstruct a tuple.\n</summary>\n<returns>The tuple.</returns>\n<param name=\"elements\">The elements.</param>\n</doc>",
+        "parameters": [
+          {
+            "name": "elements",
+            "nullable": false,
+            "type": {
+              "code": "LIST",
+              "types": [
+                {
+                  "code": "CLASS",
+                  "name": "Expression",
+                  "service": "KRPC"
+                }
+              ]
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Expression",
+          "service": "KRPC"
+        }
+      },
+      "Expression_static_Divide": {
+        "documentation": "<doc>\n<summary>\nNumerical division.\n</summary>\n<param name=\"arg0\"></param>\n<param name=\"arg1\"></param>\n</doc>",
+        "parameters": [
+          {
+            "name": "arg0",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          },
+          {
+            "name": "arg1",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Expression",
+          "service": "KRPC"
+        }
+      },
+      "Expression_static_Equal": {
+        "documentation": "<doc>\n<summary>\nEquality comparison.\n</summary>\n<param name=\"arg0\"></param>\n<param name=\"arg1\"></param>\n</doc>",
+        "parameters": [
+          {
+            "name": "arg0",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          },
+          {
+            "name": "arg1",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Expression",
+          "service": "KRPC"
+        }
+      },
+      "Expression_static_ExclusiveOr": {
+        "documentation": "<doc>\n<summary>\nBoolean exclusive-or operator.\n</summary>\n<param name=\"arg0\"></param>\n<param name=\"arg1\"></param>\n</doc>",
+        "parameters": [
+          {
+            "name": "arg0",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          },
+          {
+            "name": "arg1",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Expression",
+          "service": "KRPC"
+        }
+      },
+      "Expression_static_Function": {
+        "documentation": "<doc>\n<summary>\nA function.\n</summary>\n<returns>A function.</returns>\n<param name=\"parameters\">The parameters of the function.</param>\n<param name=\"body\">The body of the function.</param>\n</doc>",
+        "parameters": [
+          {
+            "name": "parameters",
+            "nullable": false,
+            "type": {
+              "code": "LIST",
+              "types": [
+                {
+                  "code": "CLASS",
+                  "name": "Expression",
+                  "service": "KRPC"
+                }
+              ]
+            }
+          },
+          {
+            "name": "body",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Expression",
+          "service": "KRPC"
+        }
+      },
+      "Expression_static_Get": {
+        "documentation": "<doc>\n<summary>\nAccess an element in a tuple, list or dictionary.\n</summary>\n<returns>The element.</returns>\n<param name=\"arg\">The tuple, list or dictionary.</param>\n<param name=\"index\">The index of the element to access.\nA zero indexed integer for a tuple or list, or a key for a dictionary.</param>\n</doc>",
+        "parameters": [
+          {
+            "name": "arg",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          },
+          {
+            "name": "index",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Expression",
+          "service": "KRPC"
+        }
+      },
+      "Expression_static_GreaterThan": {
+        "documentation": "<doc>\n<summary>\nGreater than numerical comparison.\n</summary>\n<param name=\"arg0\"></param>\n<param name=\"arg1\"></param>\n</doc>",
+        "parameters": [
+          {
+            "name": "arg0",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          },
+          {
+            "name": "arg1",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Expression",
+          "service": "KRPC"
+        }
+      },
+      "Expression_static_GreaterThanOrEqual": {
+        "documentation": "<doc>\n<summary>\nGreater than or equal numerical comparison.\n</summary>\n<param name=\"arg0\"></param>\n<param name=\"arg1\"></param>\n</doc>",
+        "parameters": [
+          {
+            "name": "arg0",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          },
+          {
+            "name": "arg1",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Expression",
+          "service": "KRPC"
+        }
+      },
+      "Expression_static_Invoke": {
+        "documentation": "<doc>\n<summary>\nA function call.\n</summary>\n<returns>A function call.</returns>\n<param name=\"function\">The function to call.</param>\n<param name=\"args\">The arguments to call the function with.</param>\n</doc>",
+        "parameters": [
+          {
+            "name": "function",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          },
+          {
+            "name": "args",
+            "nullable": false,
+            "type": {
+              "code": "DICTIONARY",
+              "types": [
+                {
+                  "code": "STRING"
+                },
+                {
+                  "code": "CLASS",
+                  "name": "Expression",
+                  "service": "KRPC"
+                }
+              ]
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Expression",
+          "service": "KRPC"
+        }
+      },
+      "Expression_static_LeftShift": {
+        "documentation": "<doc>\n<summary>\nBitwise left shift.\n</summary>\n<param name=\"arg0\"></param>\n<param name=\"arg1\"></param>\n</doc>",
+        "parameters": [
+          {
+            "name": "arg0",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          },
+          {
+            "name": "arg1",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Expression",
+          "service": "KRPC"
+        }
+      },
+      "Expression_static_LessThan": {
+        "documentation": "<doc>\n<summary>\nLess than numerical comparison.\n</summary>\n<param name=\"arg0\"></param>\n<param name=\"arg1\"></param>\n</doc>",
+        "parameters": [
+          {
+            "name": "arg0",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          },
+          {
+            "name": "arg1",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Expression",
+          "service": "KRPC"
+        }
+      },
+      "Expression_static_LessThanOrEqual": {
+        "documentation": "<doc>\n<summary>\nLess than or equal numerical comparison.\n</summary>\n<param name=\"arg0\"></param>\n<param name=\"arg1\"></param>\n</doc>",
+        "parameters": [
+          {
+            "name": "arg0",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          },
+          {
+            "name": "arg1",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Expression",
+          "service": "KRPC"
+        }
+      },
+      "Expression_static_Max": {
+        "documentation": "<doc>\n<summary>\nMaximum of all elements in a collection.\n</summary>\n<returns>The maximum elements in the collection.</returns>\n<param name=\"arg\">The list or set.</param>\n</doc>",
+        "parameters": [
+          {
+            "name": "arg",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Expression",
+          "service": "KRPC"
+        }
+      },
+      "Expression_static_Min": {
+        "documentation": "<doc>\n<summary>\nMinimum of all elements in a collection.\n</summary>\n<returns>The minimum elements in the collection.</returns>\n<param name=\"arg\">The list or set.</param>\n</doc>",
+        "parameters": [
+          {
+            "name": "arg",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Expression",
+          "service": "KRPC"
+        }
+      },
+      "Expression_static_Modulo": {
+        "documentation": "<doc>\n<summary>\nNumerical modulo operator.\n</summary>\n<param name=\"arg0\"></param>\n<param name=\"arg1\"></param>\n<returns>The remainder of arg0 divided by arg1</returns>\n</doc>",
+        "parameters": [
+          {
+            "name": "arg0",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          },
+          {
+            "name": "arg1",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Expression",
+          "service": "KRPC"
+        }
+      },
+      "Expression_static_Multiply": {
+        "documentation": "<doc>\n<summary>\nNumerical multiplication.\n</summary>\n<param name=\"arg0\"></param>\n<param name=\"arg1\"></param>\n</doc>",
+        "parameters": [
+          {
+            "name": "arg0",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          },
+          {
+            "name": "arg1",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Expression",
+          "service": "KRPC"
+        }
+      },
+      "Expression_static_Not": {
+        "documentation": "<doc>\n<summary>\nBoolean negation operator.\n</summary>\n<param name=\"arg\"></param>\n</doc>",
+        "parameters": [
+          {
+            "name": "arg",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Expression",
+          "service": "KRPC"
+        }
+      },
+      "Expression_static_NotEqual": {
+        "documentation": "<doc>\n<summary>\nInequality comparison.\n</summary>\n<param name=\"arg0\"></param>\n<param name=\"arg1\"></param>\n</doc>",
+        "parameters": [
+          {
+            "name": "arg0",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          },
+          {
+            "name": "arg1",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Expression",
+          "service": "KRPC"
+        }
+      },
+      "Expression_static_Or": {
+        "documentation": "<doc>\n<summary>\nBoolean or operator.\n</summary>\n<param name=\"arg0\"></param>\n<param name=\"arg1\"></param>\n</doc>",
+        "parameters": [
+          {
+            "name": "arg0",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          },
+          {
+            "name": "arg1",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Expression",
+          "service": "KRPC"
+        }
+      },
+      "Expression_static_OrderBy": {
+        "documentation": "<doc>\n<summary>\nOrder a collection using a key function.\n</summary>\n<returns>The ordered collection.</returns>\n<param name=\"arg\">The collection to order.</param>\n<param name=\"key\">A function that takes a value from the collection and generates a key to sort on.</param>\n</doc>",
+        "parameters": [
+          {
+            "name": "arg",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          },
+          {
+            "name": "key",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Expression",
+          "service": "KRPC"
+        }
+      },
+      "Expression_static_Parameter": {
+        "documentation": "<doc>\n<summary>\nA named parameter of type double.\n</summary>\n<returns>A named parameter.</returns>\n<param name=\"name\">The name of the parameter.</param>\n<param name=\"type\">The type of the parameter.</param>\n</doc>",
+        "parameters": [
+          {
+            "name": "name",
+            "nullable": false,
+            "type": {
+              "code": "STRING"
+            }
+          },
+          {
+            "name": "type",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Type",
+              "service": "KRPC"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Expression",
+          "service": "KRPC"
+        }
+      },
+      "Expression_static_Power": {
+        "documentation": "<doc>\n<summary>\nNumerical power operator.\n</summary>\n<param name=\"arg0\"></param>\n<param name=\"arg1\"></param>\n<returns>arg0 raised to the power of arg1, with type of arg0</returns>\n</doc>",
+        "parameters": [
+          {
+            "name": "arg0",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          },
+          {
+            "name": "arg1",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Expression",
+          "service": "KRPC"
+        }
+      },
+      "Expression_static_RightShift": {
+        "documentation": "<doc>\n<summary>\nBitwise right shift.\n</summary>\n<param name=\"arg0\"></param>\n<param name=\"arg1\"></param>\n</doc>",
+        "parameters": [
+          {
+            "name": "arg0",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          },
+          {
+            "name": "arg1",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Expression",
+          "service": "KRPC"
+        }
+      },
+      "Expression_static_Select": {
+        "documentation": "<doc>\n<summary>\nRun a function on every element in the collection.\n</summary>\n<returns>The modified collection.</returns>\n<param name=\"arg\">The list or set.</param>\n<param name=\"func\">The function.</param>\n</doc>",
+        "parameters": [
+          {
+            "name": "arg",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          },
+          {
+            "name": "func",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Expression",
+          "service": "KRPC"
+        }
+      },
+      "Expression_static_Subtract": {
+        "documentation": "<doc>\n<summary>\nNumerical subtraction.\n</summary>\n<param name=\"arg0\"></param>\n<param name=\"arg1\"></param>\n</doc>",
+        "parameters": [
+          {
+            "name": "arg0",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          },
+          {
+            "name": "arg1",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Expression",
+          "service": "KRPC"
+        }
+      },
+      "Expression_static_Sum": {
+        "documentation": "<doc>\n<summary>\nSum all elements of a collection.\n</summary>\n<returns>The sum of the elements in the collection.</returns>\n<param name=\"arg\">The list or set.</param>\n</doc>",
+        "parameters": [
+          {
+            "name": "arg",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Expression",
+          "service": "KRPC"
+        }
+      },
+      "Expression_static_ToList": {
+        "documentation": "<doc>\n<summary>\nConvert a collection to a list.\n</summary>\n<returns>The collection as a list.</returns>\n<param name=\"arg\">The collection.</param>\n</doc>",
+        "parameters": [
+          {
+            "name": "arg",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Expression",
+          "service": "KRPC"
+        }
+      },
+      "Expression_static_ToSet": {
+        "documentation": "<doc>\n<summary>\nConvert a collection to a set.\n</summary>\n<returns>The collection as a set.</returns>\n<param name=\"arg\">The collection.</param>\n</doc>",
+        "parameters": [
+          {
+            "name": "arg",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Expression",
+          "service": "KRPC"
+        }
+      },
+      "Expression_static_Where": {
+        "documentation": "<doc>\n<summary>\nRun a function on every element in the collection.\n</summary>\n<returns>The modified collection.</returns>\n<param name=\"arg\">The list or set.</param>\n<param name=\"func\">The function.</param>\n</doc>",
+        "parameters": [
+          {
+            "name": "arg",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          },
+          {
+            "name": "func",
+            "nullable": false,
+            "type": {
+              "code": "CLASS",
+              "name": "Expression",
+              "service": "KRPC"
+            }
+          }
+        ],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Expression",
+          "service": "KRPC"
+        }
+      },
+      "GetClientID": {
+        "documentation": "<doc>\n<summary>\nReturns the identifier for the current client.\n</summary>\n</doc>",
+        "parameters": [],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "BYTES"
+        }
+      },
+      "GetClientName": {
+        "documentation": "<doc>\n<summary>\nReturns the name of the current client.\nThis is an empty string if the client has no name.\n</summary>\n</doc>",
+        "parameters": [],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "STRING"
+        }
+      },
+      "GetServices": {
+        "documentation": "<doc>\n<summary>\nReturns information on all services, procedures, classes, properties etc. provided by the server.\nCan be used by client libraries to automatically create functionality such as stubs.\n</summary>\n</doc>",
+        "parameters": [],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "SERVICES"
+        }
+      },
+      "GetStatus": {
+        "documentation": "<doc>\n<summary>\nReturns some information about the server, such as the version.\n</summary>\n</doc>",
+        "parameters": [],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "STATUS"
+        }
+      },
+      "RemoveStream": {
+        "documentation": "<doc>\n<summary>\nRemove a streaming request.\n</summary>\n</doc>",
+        "parameters": [
+          {
+            "name": "id",
+            "nullable": false,
+            "type": {
+              "code": "UINT64"
+            }
+          }
+        ]
+      },
+      "SetStreamRate": {
+        "documentation": "<doc>\n<summary>\nSet the update rate for a stream in Hz.\n</summary>\n</doc>",
+        "parameters": [
+          {
+            "name": "id",
+            "nullable": false,
+            "type": {
+              "code": "UINT64"
+            }
+          },
+          {
+            "name": "rate",
+            "nullable": false,
+            "type": {
+              "code": "FLOAT"
+            }
+          }
+        ]
+      },
+      "StartStream": {
+        "documentation": "<doc>\n<summary>\nStart a previously added streaming request.\n</summary>\n</doc>",
+        "parameters": [
+          {
+            "name": "id",
+            "nullable": false,
+            "type": {
+              "code": "UINT64"
+            }
+          }
+        ]
+      },
+      "Type_static_Bool": {
+        "documentation": "<doc>\n<summary>\nBool type.\n</summary>\n</doc>",
+        "parameters": [],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Type",
+          "service": "KRPC"
+        }
+      },
+      "Type_static_Double": {
+        "documentation": "<doc>\n<summary>\nDouble type.\n</summary>\n</doc>",
+        "parameters": [],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Type",
+          "service": "KRPC"
+        }
+      },
+      "Type_static_Float": {
+        "documentation": "<doc>\n<summary>\nFloat type.\n</summary>\n</doc>",
+        "parameters": [],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Type",
+          "service": "KRPC"
+        }
+      },
+      "Type_static_Int": {
+        "documentation": "<doc>\n<summary>\nInt type.\n</summary>\n</doc>",
+        "parameters": [],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Type",
+          "service": "KRPC"
+        }
+      },
+      "Type_static_String": {
+        "documentation": "<doc>\n<summary>\nString type.\n</summary>\n</doc>",
+        "parameters": [],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "CLASS",
+          "name": "Type",
+          "service": "KRPC"
+        }
+      },
+      "get_Clients": {
+        "documentation": "<doc>\n<summary>\nA list of RPC clients that are currently connected to the server.\nEach entry in the list is a clients identifier, name and address.\n</summary>\n</doc>",
+        "parameters": [],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "LIST",
+          "types": [
+            {
+              "code": "TUPLE",
+              "types": [
+                {
+                  "code": "BYTES"
+                },
+                {
+                  "code": "STRING"
+                },
+                {
+                  "code": "STRING"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "get_CurrentGameScene": {
+        "documentation": "<doc>\n<summary>\nGet the current game scene.\n</summary>\n</doc>",
+        "parameters": [],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "ENUMERATION",
+          "name": "GameScene",
+          "service": "KRPC"
+        }
+      },
+      "get_Paused": {
+        "documentation": "<doc>\n<summary>\nWhether the game is paused.\n</summary>\n</doc>",
+        "parameters": [],
+        "return_is_nullable": false,
+        "return_type": {
+          "code": "BOOL"
+        }
+      },
+      "set_Paused": {
+        "documentation": "<doc>\n<summary>\nWhether the game is paused.\n</summary>\n</doc>",
+        "parameters": [
+          {
+            "name": "value",
+            "nullable": false,
+            "type": {
+              "code": "BOOL"
+            }
+          }
+        ]
+      }
+    }
+  }
+}
