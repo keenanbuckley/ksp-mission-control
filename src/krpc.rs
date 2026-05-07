@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use krpc_client::{Client, services::space_center::SpaceCenter};
+use krpc_client::{services::space_center::SpaceCenter, Client};
 use serde::Serialize;
 use tokio::sync::broadcast;
 use tracing::{error, warn};

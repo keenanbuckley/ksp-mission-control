@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use krpc_client::{Client, services::space_center::SpaceCenter};
+use krpc_client::{services::space_center::SpaceCenter, Client};
 
 #[tokio::main]
 async fn main() -> Result<()> {

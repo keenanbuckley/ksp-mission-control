@@ -2,14 +2,14 @@ mod krpc;
 mod web;
 
 use anyhow::Result;
-use axum::{Router, routing::get};
+use axum::{routing::get, Router};
 use krpc_client::Client;
 use tokio::sync::broadcast;
 use tower_http::services::ServeDir;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
-use crate::krpc::{Calendar, TelemetryFrame, detect_calendar, run_ut_stream};
+use crate::krpc::{detect_calendar, run_ut_stream, Calendar, TelemetryFrame};
 use crate::web::ws_handler;
 
 const KRPC_HOST: &str = "127.0.0.1";
@@ -26,7 +26,9 @@ pub struct AppState {
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
+        .with_env_filter(
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
+        )
         .init();
 
     let krpc = Client::new(
