@@ -1,8 +1,8 @@
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
-use krpc_client::{Client, services::krpc::KRPC};
+use krpc_client::{services::krpc::KRPC, Client};
 use serde_json::{Map, Value};
 
 fn type_code_str(value: i32) -> &'static str {
@@ -77,6 +77,85 @@ macro_rules! encode_type {
     }};
 }
 
+fn insert_doc(map: &mut Map<String, Value>, doc: &str) {
+    if !doc.is_empty() {
+        map.insert("documentation".into(), Value::String(doc.into()));
+    }
+}
+
+fn encode_parameter(name: &str, type_value: Option<Value>, nullable: bool) -> Value {
+    let mut po = Map::new();
+    po.insert("name".into(), Value::String(name.into()));
+    if let Some(t) = type_value {
+        po.insert("type".into(), t);
+    }
+    po.insert("nullable".into(), Value::Bool(nullable));
+    Value::Object(po)
+}
+
+fn encode_procedure(
+    parameters: Vec<Value>,
+    return_type: Option<Value>,
+    return_is_nullable: bool,
+    documentation: &str,
+) -> Value {
+    let mut po = Map::new();
+    po.insert("parameters".into(), Value::Array(parameters));
+    if let Some(rt) = return_type {
+        po.insert("return_type".into(), rt);
+        po.insert("return_is_nullable".into(), Value::Bool(return_is_nullable));
+    }
+    insert_doc(&mut po, documentation);
+    Value::Object(po)
+}
+
+fn encode_class(documentation: &str) -> Value {
+    let mut co = Map::new();
+    insert_doc(&mut co, documentation);
+    Value::Object(co)
+}
+
+fn encode_enum_entry(name: &str, value: i32, documentation: &str) -> Value {
+    let mut vo = Map::new();
+    vo.insert("name".into(), Value::String(name.into()));
+    vo.insert("value".into(), Value::Number(value.into()));
+    insert_doc(&mut vo, documentation);
+    Value::Object(vo)
+}
+
+fn encode_enumeration(values: Vec<Value>, documentation: &str) -> Value {
+    let mut eo = Map::new();
+    eo.insert("values".into(), Value::Array(values));
+    insert_doc(&mut eo, documentation);
+    Value::Object(eo)
+}
+
+fn wrap_service(
+    name: &str,
+    documentation: &str,
+    procedures: Map<String, Value>,
+    classes: Map<String, Value>,
+    enumerations: Map<String, Value>,
+) -> Value {
+    let mut so = Map::new();
+    insert_doc(&mut so, documentation);
+    so.insert("procedures".into(), Value::Object(procedures));
+    so.insert("classes".into(), Value::Object(classes));
+    so.insert("enumerations".into(), Value::Object(enumerations));
+    let mut top = Map::new();
+    top.insert(name.into(), Value::Object(so));
+    Value::Object(top)
+}
+
+fn write_service_json(out_dir: &Path, name: &str, value: &Value) -> Result<()> {
+    let path = out_dir.join(format!("{name}.json"));
+    let tmp = path.with_extension("json.tmp");
+    let pretty = serde_json::to_string_pretty(value)?;
+    fs::write(&tmp, pretty).with_context(|| format!("write {}", tmp.display()))?;
+    fs::rename(&tmp, &path).with_context(|| format!("rename to {}", path.display()))?;
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let client = Client::new("ksp-mc-dump-defs", "127.0.0.1", 50000, 50001).await?;
@@ -84,109 +163,66 @@ async fn main() -> Result<()> {
     let services = krpc.get_services().await?;
 
     let out_dir = PathBuf::from("service_definitions");
-    fs::create_dir_all(&out_dir)
-        .with_context(|| format!("create {}", out_dir.display()))?;
+    fs::create_dir_all(&out_dir).with_context(|| format!("create {}", out_dir.display()))?;
 
     for service in &services.services {
-        let mut procedures = Map::new();
-        for p in &service.procedures {
-            let parameters: Vec<Value> = p
-                .parameters
-                .iter()
-                .map(|param| {
-                    let mut po = Map::new();
-                    po.insert("name".into(), Value::String(param.name.clone()));
-                    if let Some(t) = param.type_.as_ref() {
-                        po.insert("type".into(), encode_type!(t));
-                    }
-                    po.insert("nullable".into(), Value::Bool(param.nullable));
-                    Value::Object(po)
-                })
-                .collect();
-
-            let mut po = Map::new();
-            po.insert("parameters".into(), Value::Array(parameters));
-            if let Some(rt) = p.return_type.as_ref() {
-                po.insert("return_type".into(), encode_type!(rt));
-                po.insert(
-                    "return_is_nullable".into(),
-                    Value::Bool(p.return_is_nullable),
+        let procedures: Map<String, Value> = service
+            .procedures
+            .iter()
+            .map(|p| {
+                let parameters = p
+                    .parameters
+                    .iter()
+                    .map(|param| {
+                        encode_parameter(
+                            &param.name,
+                            param.type_.as_ref().map(|t| encode_type!(t)),
+                            param.nullable,
+                        )
+                    })
+                    .collect();
+                let return_type = p.return_type.as_ref().map(|rt| encode_type!(rt));
+                let value = encode_procedure(
+                    parameters,
+                    return_type,
+                    p.return_is_nullable,
+                    &p.documentation,
                 );
-            }
-            if !p.documentation.is_empty() {
-                po.insert(
-                    "documentation".into(),
-                    Value::String(p.documentation.clone()),
-                );
-            }
-            procedures.insert(p.name.clone(), Value::Object(po));
-        }
+                (p.name.clone(), value)
+            })
+            .collect();
 
-        let mut classes = Map::new();
-        for c in &service.classes {
-            let mut co = Map::new();
-            if !c.documentation.is_empty() {
-                co.insert(
-                    "documentation".into(),
-                    Value::String(c.documentation.clone()),
-                );
-            }
-            classes.insert(c.name.clone(), Value::Object(co));
-        }
+        let classes: Map<String, Value> = service
+            .classes
+            .iter()
+            .map(|c| (c.name.clone(), encode_class(&c.documentation)))
+            .collect();
 
-        let mut enumerations = Map::new();
-        for e in &service.enumerations {
-            let values: Vec<Value> = e
-                .values
-                .iter()
-                .map(|v| {
-                    let mut vo = Map::new();
-                    vo.insert("name".into(), Value::String(v.name.clone()));
-                    vo.insert("value".into(), Value::Number(v.value.into()));
-                    if !v.documentation.is_empty() {
-                        vo.insert(
-                            "documentation".into(),
-                            Value::String(v.documentation.clone()),
-                        );
-                    }
-                    Value::Object(vo)
-                })
-                .collect();
-            let mut eo = Map::new();
-            eo.insert("values".into(), Value::Array(values));
-            if !e.documentation.is_empty() {
-                eo.insert(
-                    "documentation".into(),
-                    Value::String(e.documentation.clone()),
-                );
-            }
-            enumerations.insert(e.name.clone(), Value::Object(eo));
-        }
+        let enumerations: Map<String, Value> = service
+            .enumerations
+            .iter()
+            .map(|e| {
+                let values = e
+                    .values
+                    .iter()
+                    .map(|v| encode_enum_entry(&v.name, v.value, &v.documentation))
+                    .collect();
+                (e.name.clone(), encode_enumeration(values, &e.documentation))
+            })
+            .collect();
 
-        let mut so = Map::new();
-        if !service.documentation.is_empty() {
-            so.insert(
-                "documentation".into(),
-                Value::String(service.documentation.clone()),
-            );
-        }
-        so.insert("procedures".into(), Value::Object(procedures));
-        so.insert("classes".into(), Value::Object(classes));
-        so.insert("enumerations".into(), Value::Object(enumerations));
-
-        let mut top = Map::new();
-        top.insert(service.name.clone(), Value::Object(so));
-        let value = Value::Object(top);
-
-        let path = out_dir.join(format!("{}.json", service.name));
-        let tmp = path.with_extension("json.tmp");
-        let pretty = serde_json::to_string_pretty(&value)?;
-        fs::write(&tmp, pretty).with_context(|| format!("write {}", tmp.display()))?;
-        fs::rename(&tmp, &path)
-            .with_context(|| format!("rename to {}", path.display()))?;
+        let value = wrap_service(
+            &service.name,
+            &service.documentation,
+            procedures,
+            classes,
+            enumerations,
+        );
+        write_service_json(&out_dir, &service.name, &value)?;
         println!(
-            "wrote {} ({} procedures, {} classes, {} enumerations)",
-            path.display(),
+            "wrote {}/{}.json ({} procedures, {} classes, {} enumerations)",
+            out_dir.display(),
+            service.name,
             service.procedures.len(),
             service.classes.len(),
             service.enumerations.len()
