@@ -54,7 +54,7 @@ function handleMessage {
         return.
     }
     if not content:haskey("protocol_version")
-       or content["protocol_version"] <> PROTO_VER {
+       or content:protocol_version <> PROTO_VER {
         print "ag_listener: missing/bad protocol_version; dropping.".
         return.
     }
@@ -62,13 +62,13 @@ function handleMessage {
         print "ag_listener: no op field; dropping.".
         return.
     }
-    local op is content["op"].
+    local op is content:op.
     if op = "toggle_ag" {
         if not content:haskey("n") {
             print "ag_listener: toggle_ag missing n; dropping.".
             return.
         }
-        toggleAg(content["n"]).
+        toggleAg(content:n).
     } else {
         print "ag_listener: unknown op '" + op + "'; dropping.".
     }
