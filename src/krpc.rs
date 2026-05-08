@@ -13,7 +13,7 @@ use tracing::{info, warn};
 
 const STREAM_RATE_HZ: f32 = 5.0;
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(2);
-const HEARTBEAT_TIMEOUT: Duration = Duration::from_secs(5);
+const HEARTBEAT_TIMEOUT: Duration = Duration::from_secs(15);
 const INITIAL_BACKOFF: Duration = Duration::from_secs(1);
 const MAX_BACKOFF: Duration = Duration::from_secs(30);
 
@@ -159,7 +159,11 @@ async fn run_heartbeat(krpc: &KRPC) -> Result<()> {
     tick.tick().await; // first tick fires immediately; skip the freebie
     loop {
         tick.tick().await;
-        tokio::time::timeout(HEARTBEAT_TIMEOUT, krpc.get_current_game_scene())
+        // get_client_id over get_current_game_scene: the latter's response
+        // doesn't decode in the main menu (no MainMenu variant in the crate's
+        // GameScene enum), which would false-positive a disconnect every time
+        // the user exits to the menu and trigger a stale-client leak.
+        tokio::time::timeout(HEARTBEAT_TIMEOUT, krpc.get_client_id())
             .await
             .context("kRPC heartbeat timed out")?
             .context("kRPC heartbeat failed")?;
