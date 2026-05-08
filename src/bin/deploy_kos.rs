@@ -36,7 +36,9 @@ fn resolve_dest() -> Result<PathBuf> {
             return Ok(PathBuf::from(v));
         }
     }
-    if let Some(cfg) = config::read(Path::new(CONFIG_PATH))? {
+    let cfg_path = Path::new(CONFIG_PATH);
+    config::bootstrap_if_missing(cfg_path)?;
+    if let Some(cfg) = config::read(cfg_path)? {
         return Ok(PathBuf::from(cfg.script_dir));
     }
     Err(anyhow!(
