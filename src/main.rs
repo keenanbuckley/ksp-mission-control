@@ -1,11 +1,14 @@
 mod krpc;
 mod web;
 
+use std::path::Path;
+
 use anyhow::{anyhow, Result};
 use axum::{routing::get, Router};
+use ksp_mission_control::config;
 use tokio::sync::{broadcast, watch};
 use tower_http::services::ServeDir;
-use tracing::info;
+use tracing::{info, warn};
 use tracing_subscriber::EnvFilter;
 
 use crate::krpc::{run_telemetry_supervisor, ConnStatus, TelemetryFrame};
@@ -29,6 +32,10 @@ async fn main() -> Result<()> {
             EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
         )
         .init();
+
+    if let Err(e) = config::bootstrap_if_missing(Path::new(".kos.toml")) {
+        warn!(error = %e, ".kos.toml bootstrap failed; deploy-kos will need a path source");
+    }
 
     let (telemetry_tx, _) = broadcast::channel::<TelemetryFrame>(64);
     let (status_tx, _) = watch::channel(ConnStatus::Disconnected);

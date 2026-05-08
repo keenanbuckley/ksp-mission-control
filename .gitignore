@@ -12,6 +12,9 @@ target
 # Contains mutation testing data
 **/mutants.out*/
 
+# Per-developer kOS deploy config; main writes this on first run
+.kos.toml
+
 # RustRover
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
 #  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
