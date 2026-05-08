@@ -1,15 +1,14 @@
 mod krpc;
 mod web;
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use axum::{routing::get, Router};
-use krpc_client::Client;
-use tokio::sync::broadcast;
+use tokio::sync::{broadcast, watch};
 use tower_http::services::ServeDir;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
-use crate::krpc::{detect_calendar, run_ut_stream, Calendar, TelemetryFrame};
+use crate::krpc::{run_telemetry_supervisor, ConnStatus, TelemetryFrame};
 use crate::web::ws_handler;
 
 const KRPC_HOST: &str = "127.0.0.1";
@@ -20,7 +19,7 @@ const BIND_ADDR: &str = "127.0.0.1:8080";
 #[derive(Clone)]
 pub struct AppState {
     pub telemetry_tx: broadcast::Sender<TelemetryFrame>,
-    pub calendar: Calendar,
+    pub status_tx: watch::Sender<ConnStatus>,
 }
 
 #[tokio::main]
@@ -31,35 +30,34 @@ async fn main() -> Result<()> {
         )
         .init();
 
-    let krpc = Client::new(
-        "ksp-mission-control",
-        KRPC_HOST,
+    let (telemetry_tx, _) = broadcast::channel::<TelemetryFrame>(64);
+    let (status_tx, _) = watch::channel(ConnStatus::Disconnected);
+
+    let supervisor = tokio::spawn(run_telemetry_supervisor(
+        KRPC_HOST.to_string(),
         KRPC_RPC_PORT,
         KRPC_STREAM_PORT,
-    )
-    .await?;
-    info!(host = KRPC_HOST, port = KRPC_RPC_PORT, "connected to kRPC");
-
-    let calendar = detect_calendar(krpc.clone()).await?;
-    info!(
-        secs_per_day = calendar.secs_per_day,
-        secs_per_year = calendar.secs_per_year,
-        "calendar detected"
-    );
-
-    let (telemetry_tx, _) = broadcast::channel::<TelemetryFrame>(64);
-    tokio::spawn(run_ut_stream(krpc.clone(), telemetry_tx.clone()));
+        telemetry_tx.clone(),
+        status_tx.clone(),
+    ));
 
     let app = Router::new()
         .route("/ws", get(ws_handler))
         .fallback_service(ServeDir::new("static"))
         .with_state(AppState {
             telemetry_tx,
-            calendar,
+            status_tx,
         });
 
     let listener = tokio::net::TcpListener::bind(BIND_ADDR).await?;
     info!("listening on http://{BIND_ADDR}");
-    axum::serve(listener, app).await?;
+
+    tokio::select! {
+        res = axum::serve(listener, app) => res?,
+        join = supervisor => match join {
+            Ok(()) => return Err(anyhow!("telemetry supervisor exited unexpectedly")),
+            Err(e) => return Err(anyhow!("telemetry supervisor panicked: {e}")),
+        },
+    }
     Ok(())
 }

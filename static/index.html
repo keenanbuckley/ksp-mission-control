@@ -8,25 +8,27 @@
     main { text-align: center; }
     h1 { font-weight: 400; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.7; margin: 0 0 0.5em; font-size: 0.9rem; }
     .ut { font-family: ui-monospace, monospace; font-size: 2.25rem; font-variant-numeric: tabular-nums; }
-    .status { margin-top: 1em; opacity: 0.5; font-size: 0.8rem; }
+    .status { margin-top: 0.6em; opacity: 0.5; font-size: 0.8rem; }
   </style>
 </head>
 <body>
   <main>
     <h1>Universal Time</h1>
     <div class="ut" id="ut">—</div>
-    <div class="status" id="status">connecting…</div>
+    <div class="status" id="server">connecting…</div>
+    <div class="status" id="ksp">KSP: unknown</div>
   </main>
   <script>
     const utEl = document.getElementById("ut");
-    const statusEl = document.getElementById("status");
-    // Calendar constants (secs_per_day, secs_per_year) come from the server,
-    // which detects Kerbin vs Earth time from the active KSP install.
+    const serverEl = document.getElementById("server");
+    const kspEl = document.getElementById("ksp");
     const SECS_PER_HOUR = 3600;
-    function formatUT(ut, secsPerDay, secsPerYear) {
-      const years = Math.floor(ut / secsPerYear);
-      let r = ut - years * secsPerYear;
-      const days = Math.floor(r / secsPerDay); r -= days * secsPerDay;
+    let calendar = null; // { secs_per_day, secs_per_year } — populated from status frames
+    function formatUT(ut) {
+      const { secs_per_day, secs_per_year } = calendar;
+      const years = Math.floor(ut / secs_per_year);
+      let r = ut - years * secs_per_year;
+      const days = Math.floor(r / secs_per_day); r -= days * secs_per_day;
       const hours = Math.floor(r / SECS_PER_HOUR); r -= hours * SECS_PER_HOUR;
       const minutes = Math.floor(r / 60);
       const seconds = Math.floor(r - minutes * 60);
@@ -36,21 +38,29 @@
     const MAX_BACKOFF_MS = 10000;
     let backoffMs = INITIAL_BACKOFF_MS;
     function connect() {
-      statusEl.textContent = "connecting…";
+      serverEl.textContent = "connecting…";
       const ws = new WebSocket(`ws://${location.host}/ws`);
       ws.onopen = () => {
         backoffMs = INITIAL_BACKOFF_MS;
-        statusEl.textContent = "connected";
+        serverEl.textContent = "connected";
       };
       ws.onclose = () => {
-        statusEl.textContent = `disconnected — retrying in ${backoffMs / 1000}s`;
+        serverEl.textContent = `disconnected — retrying in ${backoffMs / 1000}s`;
+        kspEl.textContent = "KSP: unknown";
         setTimeout(connect, backoffMs);
         backoffMs = Math.min(backoffMs * 2, MAX_BACKOFF_MS);
       };
       ws.onmessage = (ev) => {
         const frame = JSON.parse(ev.data);
-        if (frame.kind === "ut") {
-          utEl.textContent = formatUT(frame.value, frame.secs_per_day, frame.secs_per_year);
+        if (frame.kind === "status") {
+          if (frame.connected) {
+            calendar = frame.calendar;
+            kspEl.textContent = "KSP: connected";
+          } else {
+            kspEl.textContent = "KSP: not connected";
+          }
+        } else if (frame.kind === "ut" && calendar) {
+          utEl.textContent = formatUT(frame.value);
         }
       };
     }
