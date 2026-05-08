@@ -10,6 +10,11 @@ tower-http = { version = "0.6", features = ["fs"] }
 krpc-client = { version = "0.6", features = ["tokio"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+toml = "0.8"
 anyhow = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[[bin]]
+name = "deploy-kos"
+path = "src/bin/deploy_kos.rs"
