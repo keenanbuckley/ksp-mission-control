@@ -9,7 +9,6 @@ async fn main() -> Result<()> {
         .context("connecting to kRPC")?;
 
     let json = control::encode_dict(serde_json::json!({
-        "protocol_version": 1,
         "op": "toggle_ag",
         "n": 1,
     }))?;

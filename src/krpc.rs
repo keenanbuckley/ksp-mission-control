@@ -7,8 +7,9 @@ use krpc_client::{
     stream::Stream,
     Client,
 };
+use ksp_mission_control::control;
 use serde::Serialize;
-use tokio::sync::{broadcast, watch};
+use tokio::sync::{broadcast, mpsc, watch};
 use tracing::{info, warn};
 
 const STREAM_RATE_HZ: f32 = 5.0;
@@ -67,6 +68,7 @@ pub async fn run_telemetry_supervisor(
     stream_port: u16,
     telemetry_tx: broadcast::Sender<TelemetryFrame>,
     status_tx: watch::Sender<ConnStatus>,
+    mut command_rx: mpsc::Receiver<serde_json::Value>,
 ) {
     let mut backoff = INITIAL_BACKOFF;
     loop {
@@ -121,7 +123,7 @@ pub async fn run_telemetry_supervisor(
         });
         backoff = INITIAL_BACKOFF;
 
-        if let Err(e) = run_session(client, telemetry_tx.clone()).await {
+        if let Err(e) = run_session(client, telemetry_tx.clone(), &mut command_rx).await {
             warn!(error = format!("{e:#}"), "kRPC session ended; reconnecting");
         }
     }
@@ -131,16 +133,44 @@ fn next_backoff(current: Duration) -> Duration {
     (current * 2).min(MAX_BACKOFF)
 }
 
-async fn run_session(client: Arc<Client>, tx: broadcast::Sender<TelemetryFrame>) -> Result<()> {
+async fn run_session(
+    client: Arc<Client>,
+    tx: broadcast::Sender<TelemetryFrame>,
+    command_rx: &mut mpsc::Receiver<serde_json::Value>,
+) -> Result<()> {
     let space_center = SpaceCenter::new(client.clone());
-    let krpc = KRPC::new(client);
+    let krpc = KRPC::new(client.clone());
     let stream = space_center.get_ut_stream().await?;
     stream.set_rate(STREAM_RATE_HZ).await?;
 
     tokio::select! {
         res = run_stream_loop(&stream, &tx) => res,
         res = run_heartbeat(&krpc) => res,
+        res = run_dispatcher(&client, command_rx) => res,
     }
+}
+
+async fn run_dispatcher(
+    client: &Arc<Client>,
+    command_rx: &mut mpsc::Receiver<serde_json::Value>,
+) -> Result<()> {
+    while let Some(cmd) = command_rx.recv().await {
+        if !cmd.is_object() {
+            warn!(payload = %cmd, "command not an object; dropping");
+            continue;
+        }
+        let json = match control::encode_dict(cmd) {
+            Ok(j) => j,
+            Err(e) => {
+                warn!(error = %e, "command encode failed; dropping");
+                continue;
+            }
+        };
+        if let Err(e) = control::send_command(client, &json).await {
+            warn!(error = format!("{e:#}"), "command dispatch failed");
+        }
+    }
+    Ok(())
 }
 
 async fn run_stream_loop(

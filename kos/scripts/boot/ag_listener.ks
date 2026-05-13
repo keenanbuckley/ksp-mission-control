@@ -10,7 +10,6 @@ print "ag_listener: waiting for ship to unpack.".
 wait until ship:unpacked.
 
 local MC_TAG       is "mc".
-local PROTO_VER    is 1.
 local PASSIVE_POLL is 5.   // seconds between vessel-change re-checks
 
 function otherMcHolderExists {
@@ -51,11 +50,6 @@ function handleMessage {
     parameter content.
     if not content:istype("Lexicon") {
         print "ag_listener: bad message type; dropping.".
-        return.
-    }
-    if not content:haskey("protocol_version")
-       or content:protocol_version <> PROTO_VER {
-        print "ag_listener: missing/bad protocol_version; dropping.".
         return.
     }
     if not content:haskey("op") {

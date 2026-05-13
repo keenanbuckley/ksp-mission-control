@@ -6,7 +6,7 @@ use std::path::Path;
 use anyhow::{anyhow, Result};
 use axum::{routing::get, Router};
 use ksp_mission_control::config;
-use tokio::sync::{broadcast, watch};
+use tokio::sync::{broadcast, mpsc, watch};
 use tower_http::services::ServeDir;
 use tracing::{info, warn};
 use tracing_subscriber::EnvFilter;
@@ -18,11 +18,13 @@ const KRPC_HOST: &str = "127.0.0.1";
 const KRPC_RPC_PORT: u16 = 50000;
 const KRPC_STREAM_PORT: u16 = 50001;
 const BIND_ADDR: &str = "127.0.0.1:8080";
+const COMMAND_QUEUE_DEPTH: usize = 16;
 
 #[derive(Clone)]
 pub struct AppState {
     pub telemetry_tx: broadcast::Sender<TelemetryFrame>,
     pub status_tx: watch::Sender<ConnStatus>,
+    pub command_tx: mpsc::Sender<serde_json::Value>,
 }
 
 #[tokio::main]
@@ -39,6 +41,7 @@ async fn main() -> Result<()> {
 
     let (telemetry_tx, _) = broadcast::channel::<TelemetryFrame>(64);
     let (status_tx, _) = watch::channel(ConnStatus::Disconnected);
+    let (command_tx, command_rx) = mpsc::channel::<serde_json::Value>(COMMAND_QUEUE_DEPTH);
 
     let supervisor = tokio::spawn(run_telemetry_supervisor(
         KRPC_HOST.to_string(),
@@ -46,6 +49,7 @@ async fn main() -> Result<()> {
         KRPC_STREAM_PORT,
         telemetry_tx.clone(),
         status_tx.clone(),
+        command_rx,
     ));
 
     let app = Router::new()
@@ -54,6 +58,7 @@ async fn main() -> Result<()> {
         .with_state(AppState {
             telemetry_tx,
             status_tx,
+            command_tx,
         });
 
     let listener = tokio::net::TcpListener::bind(BIND_ADDR).await?;
