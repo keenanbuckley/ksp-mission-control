@@ -9,6 +9,10 @@
     h1 { font-weight: 400; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.7; margin: 0 0 0.5em; font-size: 0.9rem; }
     .ut { font-family: ui-monospace, monospace; font-size: 2.25rem; font-variant-numeric: tabular-nums; }
     .status { margin-top: 0.6em; opacity: 0.5; font-size: 0.8rem; }
+    .controls { margin-top: 1.5em; }
+    button { font: inherit; background: #1c2745; color: inherit; border: 1px solid #2b3a66; padding: 0.5em 1em; border-radius: 4px; cursor: pointer; }
+    button:hover:not(:disabled) { background: #243358; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
   </style>
 </head>
 <body>
@@ -17,11 +21,15 @@
     <div class="ut" id="ut">—</div>
     <div class="status" id="server">connecting…</div>
     <div class="status" id="ksp">KSP: unknown</div>
+    <div class="controls">
+      <button id="toggle-ag1" disabled>Toggle AG1</button>
+    </div>
   </main>
   <script>
     const utEl = document.getElementById("ut");
     const serverEl = document.getElementById("server");
     const kspEl = document.getElementById("ksp");
+    const toggleAg1Btn = document.getElementById("toggle-ag1");
     const SECS_PER_HOUR = 3600;
     let calendar = null; // { secs_per_day, secs_per_year } — populated from status frames
     function formatUT(ut) {
@@ -37,9 +45,18 @@
     const INITIAL_BACKOFF_MS = 500;
     const MAX_BACKOFF_MS = 10000;
     let backoffMs = INITIAL_BACKOFF_MS;
+    let activeWs = null;
+    function setKspConnected(connected) {
+      toggleAg1Btn.disabled = !connected;
+    }
+    toggleAg1Btn.addEventListener("click", () => {
+      if (!activeWs || activeWs.readyState !== WebSocket.OPEN) return;
+      activeWs.send(JSON.stringify({ kind: "command", command: { op: "toggle_ag", n: 1 } }));
+    });
     function connect() {
       serverEl.textContent = "connecting…";
       const ws = new WebSocket(`ws://${location.host}/ws`);
+      activeWs = ws;
       ws.onopen = () => {
         backoffMs = INITIAL_BACKOFF_MS;
         serverEl.textContent = "connected";
@@ -47,6 +64,7 @@
       ws.onclose = () => {
         serverEl.textContent = `disconnected — retrying in ${backoffMs / 1000}s`;
         kspEl.textContent = "KSP: unknown";
+        setKspConnected(false);
         setTimeout(connect, backoffMs);
         backoffMs = Math.min(backoffMs * 2, MAX_BACKOFF_MS);
       };
@@ -56,8 +74,10 @@
           if (frame.connected) {
             calendar = frame.calendar;
             kspEl.textContent = "KSP: connected";
+            setKspConnected(true);
           } else {
             kspEl.textContent = "KSP: not connected";
+            setKspConnected(false);
           }
         } else if (frame.kind === "ut" && calendar) {
           utEl.textContent = formatUT(frame.value);

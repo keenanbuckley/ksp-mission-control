@@ -6,7 +6,8 @@ use axum::{
     response::IntoResponse,
 };
 use serde_json::json;
-use tokio::sync::broadcast;
+use tokio::sync::{broadcast, mpsc};
+use tracing::warn;
 
 use crate::krpc::ConnStatus;
 use crate::AppState;
@@ -56,6 +57,46 @@ async fn client_socket(mut socket: WebSocket, state: AppState) {
                 }
                 Err(_) => break,
             },
+            incoming = socket.recv() => match incoming {
+                Some(Ok(Message::Text(text))) => handle_inbound(&text, &state.command_tx),
+                Some(Ok(Message::Close(_))) | None => break,
+                Some(Ok(_)) => {} // ignore Binary/Ping/Pong
+                Some(Err(e)) => {
+                    warn!(error = %e, "ws recv error; closing");
+                    break;
+                }
+            },
+        }
+    }
+}
+
+fn handle_inbound(text: &str, command_tx: &mpsc::Sender<serde_json::Value>) {
+    let frame: serde_json::Value = match serde_json::from_str(text) {
+        Ok(v) => v,
+        Err(e) => {
+            warn!(error = %e, "ws inbound: bad json; dropping");
+            return;
+        }
+    };
+    if frame.get("kind").and_then(|k| k.as_str()) != Some("command") {
+        warn!("ws inbound: kind != \"command\"; dropping");
+        return;
+    }
+    let Some(command) = frame.get("command") else {
+        warn!("ws inbound: missing command field; dropping");
+        return;
+    };
+    if !command.is_object() {
+        warn!("ws inbound: command not an object; dropping");
+        return;
+    }
+    match command_tx.try_send(command.clone()) {
+        Ok(()) => {}
+        Err(mpsc::error::TrySendError::Full(_)) => {
+            warn!("command queue full; dropping");
+        }
+        Err(mpsc::error::TrySendError::Closed(_)) => {
+            warn!("command channel closed; dropping");
         }
     }
 }
