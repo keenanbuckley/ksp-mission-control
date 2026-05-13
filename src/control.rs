@@ -13,7 +13,10 @@ use tracing::warn;
 /// kIPC's deserializer rejects top-level JSON objects without a `type`
 /// field, and the `dict` handler requires `data`/`keys`/`values`. The
 /// receiving kerboscript script sees `msg:CONTENT` as a Lexicon whose
-/// fields are exactly those of `payload`.
+/// fields are exactly those of `payload`. Nested container values
+/// (lists, sub-dicts) inside `payload` must already be wrapped via
+/// `encode_list` or a sub-`encode_dict`. kIPC's per-element deserializer
+/// only treats primitives (number/string/bool) as untagged.
 pub fn encode_dict(payload: serde_json::Value) -> Result<String> {
     let envelope = serde_json::json!({
         "type": "dict",
@@ -22,6 +25,16 @@ pub fn encode_dict(payload: serde_json::Value) -> Result<String> {
         "values": [],
     });
     Ok(serde_json::to_string(&envelope)?)
+}
+
+/// Wraps a JSON array in kIPC's list envelope: `{"type":"list","data":[...]}`.
+/// Use when embedding a list as a value inside a payload passed to
+/// `encode_dict`.
+pub fn encode_list(items: serde_json::Value) -> serde_json::Value {
+    serde_json::json!({
+        "type": "list",
+        "data": items,
+    })
 }
 
 pub async fn send_command(client: &Arc<Client>, json: &str) -> Result<()> {
