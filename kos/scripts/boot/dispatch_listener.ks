@@ -16,6 +16,11 @@ switch to 0.
 local MC_TAG       is "mc".
 local PASSIVE_POLL is 5.   // seconds between vessel-change re-checks
 
+local SCRIPT_ARITY is lexicon(
+    "launch.ks", 6,
+    "maneuver.ks", 0
+).
+
 function otherMcHolderExists {
     local self_uid is core:part:uid.
     for p in ship:parts {
@@ -90,17 +95,32 @@ function handleMessage {
         }
         local p is content:path.
         local a is content:args.
+        if not a:istype("List") {
+            print "dispatch_listener: run_script args must be a list; dropping.".
+            return.
+        }
+        if not SCRIPT_ARITY:haskey(p) {
+            print "dispatch_listener: unknown script: /" + p + "; dropping.".
+            return.
+        }
+        local expected is SCRIPT_ARITY[p].
+        if a:length <> expected {
+            print "dispatch_listener: /" + p + " expects " + expected + " args; got " + a:length + "; dropping.".
+            return.
+        }
         if not exists("/" + p) {
             print "dispatch_listener: script not found: /" + p + "; dropping.".
             return.
         }
-        if not a:istype("List") or a:length <> 6 {
-            print "dispatch_listener: run_script args must be a 6-element list; dropping.".
+        print "dispatch_listener: running /" + p + ".".
+        if expected = 0 {
+            runPath("/" + p).
+        } else if expected = 6 {
+            runPath("/" + p, a[0], a[1], a[2], a[3], a[4], a[5]).
+        } else {
+            print "dispatch_listener: arity " + expected + " has no runPath form; dropping.".
             return.
         }
-        print "dispatch_listener: running /" + p + ".".
-        // Fixed arity 6 matches launch.ks's signature. Kerboscript has no splat.
-        runPath("/" + p, a[0], a[1], a[2], a[3], a[4], a[5]).
         print "dispatch_listener: /" + p + " returned.".
     } else {
         print "dispatch_listener: unknown op '" + op + "'; dropping.".
