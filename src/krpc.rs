@@ -166,7 +166,11 @@ async fn run_dispatcher(
         let payload = match cmd.get("op").and_then(|v| v.as_str()) {
             Some("plan_circ") => match planning::plan_circ(client).await {
                 Ok(plan) => {
-                    info!(dv = plan.dv, ut = plan.ut, "plan_circ: dispatching add_node");
+                    info!(
+                        dv = plan.dv,
+                        ut = plan.ut,
+                        "plan_circ: dispatching add_node"
+                    );
                     planned = Some(plan);
                     json!({ "op": "add_node", "dv": plan.dv, "ut": plan.ut })
                 }
