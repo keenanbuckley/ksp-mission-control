@@ -9,6 +9,7 @@ use krpc_client::{
 };
 use ksp_mission_control::{control, planning};
 use serde::Serialize;
+use serde_json::json;
 use tokio::sync::{broadcast, mpsc, watch};
 use tracing::{info, warn};
 
@@ -20,8 +21,9 @@ const MAX_BACKOFF: Duration = Duration::from_secs(30);
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "kind", content = "value", rename_all = "snake_case")]
-pub enum TelemetryFrame {
+pub enum OutboundEvent {
     Ut(f64),
+    NodePlanned { dv: f64, ut: f64 },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize)]
@@ -66,7 +68,7 @@ pub async fn run_telemetry_supervisor(
     host: String,
     rpc_port: u16,
     stream_port: u16,
-    telemetry_tx: broadcast::Sender<TelemetryFrame>,
+    event_tx: broadcast::Sender<OutboundEvent>,
     status_tx: watch::Sender<ConnStatus>,
     mut command_rx: mpsc::Receiver<serde_json::Value>,
 ) {
@@ -123,7 +125,7 @@ pub async fn run_telemetry_supervisor(
         });
         backoff = INITIAL_BACKOFF;
 
-        if let Err(e) = run_session(client, telemetry_tx.clone(), &mut command_rx).await {
+        if let Err(e) = run_session(client, event_tx.clone(), &mut command_rx).await {
             warn!(error = format!("{e:#}"), "kRPC session ended; reconnecting");
         }
     }
@@ -135,7 +137,7 @@ fn next_backoff(current: Duration) -> Duration {
 
 async fn run_session(
     client: Arc<Client>,
-    tx: broadcast::Sender<TelemetryFrame>,
+    tx: broadcast::Sender<OutboundEvent>,
     command_rx: &mut mpsc::Receiver<serde_json::Value>,
 ) -> Result<()> {
     let space_center = SpaceCenter::new(client.clone());
@@ -146,24 +148,27 @@ async fn run_session(
     tokio::select! {
         res = run_stream_loop(&stream, &tx) => res,
         res = run_heartbeat(&krpc) => res,
-        res = run_dispatcher(&client, command_rx) => res,
+        res = run_dispatcher(&client, command_rx, &tx) => res,
     }
 }
 
 async fn run_dispatcher(
     client: &Arc<Client>,
     command_rx: &mut mpsc::Receiver<serde_json::Value>,
+    event_tx: &broadcast::Sender<OutboundEvent>,
 ) -> Result<()> {
     while let Some(cmd) = command_rx.recv().await {
         if !cmd.is_object() {
             warn!(payload = %cmd, "command not an object; dropping");
             continue;
         }
+        let mut planned: Option<planning::CircPlan> = None;
         let payload = match cmd.get("op").and_then(|v| v.as_str()) {
-            Some("plan_circ") => match planning::plan_circ_payload(client).await {
-                Ok(p) => {
-                    info!(payload = %p, "plan_circ: dispatching add_node");
-                    p
+            Some("plan_circ") => match planning::plan_circ(client).await {
+                Ok(plan) => {
+                    info!(dv = plan.dv, ut = plan.ut, "plan_circ: dispatching add_node");
+                    planned = Some(plan);
+                    json!({ "op": "add_node", "dv": plan.dv, "ut": plan.ut })
                 }
                 Err(e) => {
                     warn!(error = format!("{e:#}"), "plan_circ planning failed");
@@ -181,6 +186,13 @@ async fn run_dispatcher(
         };
         if let Err(e) = control::send_command(client, &json).await {
             warn!(error = format!("{e:#}"), "command dispatch failed");
+            continue;
+        }
+        if let Some(plan) = planned {
+            let _ = event_tx.send(OutboundEvent::NodePlanned {
+                dv: plan.dv,
+                ut: plan.ut,
+            });
         }
     }
     Ok(())
@@ -188,12 +200,12 @@ async fn run_dispatcher(
 
 async fn run_stream_loop(
     stream: &Stream<f64>,
-    tx: &broadcast::Sender<TelemetryFrame>,
+    tx: &broadcast::Sender<OutboundEvent>,
 ) -> Result<()> {
     loop {
         stream.wait().await;
         let ut = stream.get().await?;
-        let _ = tx.send(TelemetryFrame::Ut(ut));
+        let _ = tx.send(OutboundEvent::Ut(ut));
     }
 }
 

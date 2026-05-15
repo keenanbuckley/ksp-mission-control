@@ -19,19 +19,23 @@
   <main>
     <h1>Universal Time</h1>
     <div class="ut" id="ut">--</div>
-    <div class="status" id="server">connecting…</div>
+    <div class="status" id="server">connecting...</div>
     <div class="status" id="ksp">KSP: unknown</div>
+    <div class="status" id="planned"></div>
     <div class="controls">
       <button id="toggle-ag1" disabled>Toggle AG1</button>
       <button id="launch" disabled>Launch</button>
+      <button id="plan-circ" disabled>Plan Circ</button>
     </div>
   </main>
   <script>
     const utEl = document.getElementById("ut");
     const serverEl = document.getElementById("server");
     const kspEl = document.getElementById("ksp");
+    const plannedEl = document.getElementById("planned");
     const toggleAg1Btn = document.getElementById("toggle-ag1");
     const launchBtn = document.getElementById("launch");
+    const planCircBtn = document.getElementById("plan-circ");
     const SECS_PER_HOUR = 3600;
     let calendar = null; // populated from status frames: { secs_per_day, secs_per_year }
     function encodeList(items) {
@@ -54,6 +58,7 @@
     function setKspConnected(connected) {
       toggleAg1Btn.disabled = !connected;
       launchBtn.disabled = !connected;
+      planCircBtn.disabled = !connected;
     }
     toggleAg1Btn.addEventListener("click", () => {
       if (!activeWs || activeWs.readyState !== WebSocket.OPEN) return;
@@ -70,8 +75,12 @@
         },
       }));
     });
+    planCircBtn.addEventListener("click", () => {
+      if (!activeWs || activeWs.readyState !== WebSocket.OPEN) return;
+      activeWs.send(JSON.stringify({ kind: "command", command: { op: "plan_circ" } }));
+    });
     function connect() {
-      serverEl.textContent = "connecting…";
+      serverEl.textContent = "connecting...";
       const ws = new WebSocket(`ws://${location.host}/ws`);
       activeWs = ws;
       ws.onopen = () => {
@@ -98,6 +107,9 @@
           }
         } else if (frame.kind === "ut" && calendar) {
           utEl.textContent = formatUT(frame.value);
+        } else if (frame.kind === "node_planned" && calendar) {
+          const { dv, ut } = frame.value;
+          plannedEl.textContent = `Planned: dv=${dv.toFixed(2)} m/s at ${formatUT(ut)}`;
         }
       };
     }

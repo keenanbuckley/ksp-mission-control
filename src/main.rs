@@ -11,7 +11,7 @@ use tower_http::services::ServeDir;
 use tracing::{info, warn};
 use tracing_subscriber::EnvFilter;
 
-use crate::krpc::{run_telemetry_supervisor, ConnStatus, TelemetryFrame};
+use crate::krpc::{run_telemetry_supervisor, ConnStatus, OutboundEvent};
 use crate::web::ws_handler;
 
 const KRPC_HOST: &str = "127.0.0.1";
@@ -22,7 +22,7 @@ const COMMAND_QUEUE_DEPTH: usize = 16;
 
 #[derive(Clone)]
 pub struct AppState {
-    pub telemetry_tx: broadcast::Sender<TelemetryFrame>,
+    pub event_tx: broadcast::Sender<OutboundEvent>,
     pub status_tx: watch::Sender<ConnStatus>,
     pub command_tx: mpsc::Sender<serde_json::Value>,
 }
@@ -39,7 +39,7 @@ async fn main() -> Result<()> {
         warn!(error = %e, ".kos.toml bootstrap failed; deploy-kos will need a path source");
     }
 
-    let (telemetry_tx, _) = broadcast::channel::<TelemetryFrame>(64);
+    let (event_tx, _) = broadcast::channel::<OutboundEvent>(64);
     let (status_tx, _) = watch::channel(ConnStatus::Disconnected);
     let (command_tx, command_rx) = mpsc::channel::<serde_json::Value>(COMMAND_QUEUE_DEPTH);
 
@@ -47,7 +47,7 @@ async fn main() -> Result<()> {
         KRPC_HOST.to_string(),
         KRPC_RPC_PORT,
         KRPC_STREAM_PORT,
-        telemetry_tx.clone(),
+        event_tx.clone(),
         status_tx.clone(),
         command_rx,
     ));
@@ -56,7 +56,7 @@ async fn main() -> Result<()> {
         .route("/ws", get(ws_handler))
         .fallback_service(ServeDir::new("static"))
         .with_state(AppState {
-            telemetry_tx,
+            event_tx,
             status_tx,
             command_tx,
         });
