@@ -63,17 +63,16 @@ local throttleSetpoint is 0.
 lock throttle to throttleSetpoint.
 
 // execute maneuver node
-local burnStop is burnDuration-burnStart.
 lock steering to nd:deltav.
 set throttleSetpoint to 1.
 
-wait until nd:deltaV:mag < 1 or nd:eta <= -burnStop or vDot(dv0, nd:deltav) < 0.
+wait until nd:deltaV:mag < 1 or vDot(dv0, nd:deltav) < 0.
 set throttleSetpoint to 1*ship:mass/ship:availableThrustAt(pressure).
 
-wait until nd:deltaV:mag < 0.1 or nd:eta <= -burnStop or vDot(dv0, nd:deltav) < 0.
+wait until nd:deltaV:mag < 0.1 or vDot(dv0, nd:deltav) < 0.
 set throttleSetpoint to 0.1*ship:mass/ship:availableThrustAt(pressure).
 
-wait until nd:deltaV:mag < 0.01 or nd:eta <= -burnStop or vDot(dv0, nd:deltav) < 0.
+wait until nd:deltaV:mag < 0.01 or vDot(dv0, nd:deltav) < 0.
 set throttleSetpoint to 0.
 
 // print stats
