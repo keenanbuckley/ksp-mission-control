@@ -21,6 +21,18 @@ local SCRIPT_ARITY is lexicon(
     "maneuver.ks", 0
 ).
 
+// Lifecycle events back to the server. kIPC serializes the Lexicon; the
+// kRPC client receives a JSON envelope it decodes via control::decode_dict.
+function sendEvent {
+    parameter ev.
+    ADDON:KIPC:CONNECTION:SENDMESSAGE(ev).
+}
+
+function ackOp {
+    parameter op.
+    sendEvent(lexicon("kind", "command_ack", "op", op)).
+}
+
 function otherMcHolderExists {
     local self_uid is core:part:uid.
     for p in ship:parts {
@@ -71,6 +83,7 @@ function handleMessage {
             print "dispatch_listener: toggle_ag missing n; dropping.".
             return.
         }
+        ackOp(op).
         toggleAg(content:n).
     } else if op = "add_node" {
         if not content:haskey("dv") {
@@ -81,6 +94,7 @@ function handleMessage {
             print "dispatch_listener: add_node missing ut; dropping.".
             return.
         }
+        ackOp(op).
         local n is node(content:ut, 0, 0, content:dv).
         add n.
         print "dispatch_listener: added node at ut=" + content:ut + " dv=" + content:dv + ".".
@@ -112,6 +126,7 @@ function handleMessage {
             print "dispatch_listener: script not found: /" + p + "; dropping.".
             return.
         }
+        ackOp(op).
         print "dispatch_listener: running /" + p + ".".
         if expected = 0 {
             runPath("/" + p).
@@ -122,6 +137,9 @@ function handleMessage {
             return.
         }
         print "dispatch_listener: /" + p + " returned.".
+        // kerboscript has no try/catch, so a script that aborts mid-flight
+        // never reaches this line and the server sees no script_done event.
+        sendEvent(lexicon("kind", "script_done", "path", p, "ok", true)).
     } else {
         print "dispatch_listener: unknown op '" + op + "'; dropping.".
     }
