@@ -35,7 +35,7 @@ fn type_code_str(value: i32) -> &'static str {
 // Iterative post-order DFS that serializes a kRPC schema Type tree to a
 // serde_json Value. A macro because krpc-client keeps its protobuf-generated
 // `schema::Type` private (`mod schema`, not `pub mod`), so we cannot name the
-// parameter type for a recursive helper fn — but inline at the call site,
+// parameter type for a recursive helper fn. Inlined at the call site,
 // `vec![$root]`'s element type is inferred from `$root`.
 macro_rules! encode_type {
     ($root:expr) => {{

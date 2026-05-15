@@ -9,7 +9,7 @@
     h1 { font-weight: 400; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.7; margin: 0 0 0.5em; font-size: 0.9rem; }
     .ut { font-family: ui-monospace, monospace; font-size: 2.25rem; font-variant-numeric: tabular-nums; }
     .status { margin-top: 0.6em; opacity: 0.5; font-size: 0.8rem; }
-    .controls { margin-top: 1.5em; }
+    .controls { margin-top: 1.5em; display: flex; gap: 0.5em; justify-content: center; }
     button { font: inherit; background: #1c2745; color: inherit; border: 1px solid #2b3a66; padding: 0.5em 1em; border-radius: 4px; cursor: pointer; }
     button:hover:not(:disabled) { background: #243358; }
     button:disabled { opacity: 0.4; cursor: not-allowed; }
@@ -18,11 +18,12 @@
 <body>
   <main>
     <h1>Universal Time</h1>
-    <div class="ut" id="ut">—</div>
+    <div class="ut" id="ut">--</div>
     <div class="status" id="server">connecting…</div>
     <div class="status" id="ksp">KSP: unknown</div>
     <div class="controls">
       <button id="toggle-ag1" disabled>Toggle AG1</button>
+      <button id="launch" disabled>Launch</button>
     </div>
   </main>
   <script>
@@ -30,8 +31,12 @@
     const serverEl = document.getElementById("server");
     const kspEl = document.getElementById("ksp");
     const toggleAg1Btn = document.getElementById("toggle-ag1");
+    const launchBtn = document.getElementById("launch");
     const SECS_PER_HOUR = 3600;
-    let calendar = null; // { secs_per_day, secs_per_year } — populated from status frames
+    let calendar = null; // populated from status frames: { secs_per_day, secs_per_year }
+    function encodeList(items) {
+      return { type: "list", data: items };
+    }
     function formatUT(ut) {
       const { secs_per_day, secs_per_year } = calendar;
       const years = Math.floor(ut / secs_per_year);
@@ -48,10 +53,22 @@
     let activeWs = null;
     function setKspConnected(connected) {
       toggleAg1Btn.disabled = !connected;
+      launchBtn.disabled = !connected;
     }
     toggleAg1Btn.addEventListener("click", () => {
       if (!activeWs || activeWs.readyState !== WebSocket.OPEN) return;
       activeWs.send(JSON.stringify({ kind: "command", command: { op: "toggle_ag", n: 1 } }));
+    });
+    launchBtn.addEventListener("click", () => {
+      if (!activeWs || activeWs.readyState !== WebSocket.OPEN) return;
+      activeWs.send(JSON.stringify({
+        kind: "command",
+        command: {
+          op: "run_script",
+          path: "launch.ks",
+          args: encodeList([80000, 0, 12, 2.0, 100, -1]),
+        },
+      }));
     });
     function connect() {
       serverEl.textContent = "connecting…";
@@ -62,7 +79,7 @@
         serverEl.textContent = "connected";
       };
       ws.onclose = () => {
-        serverEl.textContent = `disconnected — retrying in ${backoffMs / 1000}s`;
+        serverEl.textContent = `disconnected, retrying in ${backoffMs / 1000}s`;
         kspEl.textContent = "KSP: unknown";
         setKspConnected(false);
         setTimeout(connect, backoffMs);
