@@ -8,8 +8,7 @@ runOncePath("/lib/maneuver_helpers.ks").
 
 if not hasnode {
     print "maneuver: no scheduled node; aborting.".
-    return.
-}
+} else {
 
 print "RUNNING maneuver".
 
@@ -92,3 +91,5 @@ set ship:control:pilotMainThrottle to 0.
 
 // turn on stability assist
 sas on.
+
+}
