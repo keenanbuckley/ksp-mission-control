@@ -17,7 +17,7 @@ pub async fn ws_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> 
 }
 
 async fn client_socket(mut socket: WebSocket, state: AppState) {
-    let mut tel_rx = state.telemetry_tx.subscribe();
+    let mut event_rx = state.event_tx.subscribe();
     let mut status_rx = state.status_tx.subscribe();
 
     // Send the current status snapshot up front so a freshly connected client
@@ -33,10 +33,10 @@ async fn client_socket(mut socket: WebSocket, state: AppState) {
 
     loop {
         tokio::select! {
-            tel = tel_rx.recv() => match tel {
+            event = event_rx.recv() => match event {
                 Ok(frame) => {
                     let payload = serde_json::to_string(&frame)
-                        .expect("TelemetryFrame is always serializable");
+                        .expect("OutboundEvent is always serializable");
                     if socket.send(Message::Text(payload.into())).await.is_err() {
                         break;
                     }

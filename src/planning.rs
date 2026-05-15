@@ -2,13 +2,18 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, Context, Result};
 use krpc_client::{services::space_center::SpaceCenter, Client};
-use serde_json::json;
+
+#[derive(Clone, Copy, Debug)]
+pub struct CircPlan {
+    pub dv: f64,
+    pub ut: f64,
+}
 
 pub fn circularization_dv(mu: f64, r_a: f64, a: f64) -> f64 {
     (mu / r_a).sqrt() - (mu * (2.0 / r_a - 1.0 / a)).sqrt()
 }
 
-pub async fn plan_circ_payload(client: &Arc<Client>) -> Result<serde_json::Value> {
+pub async fn plan_circ(client: &Arc<Client>) -> Result<CircPlan> {
     let sc = SpaceCenter::new(client.clone());
 
     let vessel = sc.get_active_vessel().await.context("get active vessel")?;
@@ -36,12 +41,8 @@ pub async fn plan_circ_payload(client: &Arc<Client>) -> Result<serde_json::Value
         ));
     }
 
-    let dv = circularization_dv(mu, r_a, a);
-    let node_ut = ut_now + time_to_apo;
-
-    Ok(json!({
-        "op": "add_node",
-        "dv": dv,
-        "ut": node_ut,
-    }))
+    Ok(CircPlan {
+        dv: circularization_dv(mu, r_a, a),
+        ut: ut_now + time_to_apo,
+    })
 }
