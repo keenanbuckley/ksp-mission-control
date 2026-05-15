@@ -7,7 +7,7 @@ use krpc_client::{
     stream::Stream,
     Client,
 };
-use ksp_mission_control::control;
+use ksp_mission_control::{control, planning};
 use serde::Serialize;
 use tokio::sync::{broadcast, mpsc, watch};
 use tracing::{info, warn};
@@ -159,7 +159,20 @@ async fn run_dispatcher(
             warn!(payload = %cmd, "command not an object; dropping");
             continue;
         }
-        let json = match control::encode_dict(cmd) {
+        let payload = match cmd.get("op").and_then(|v| v.as_str()) {
+            Some("plan_circ") => match planning::plan_circ_payload(client).await {
+                Ok(p) => {
+                    info!(payload = %p, "plan_circ: dispatching add_node");
+                    p
+                }
+                Err(e) => {
+                    warn!(error = format!("{e:#}"), "plan_circ planning failed");
+                    continue;
+                }
+            },
+            _ => cmd,
+        };
+        let json = match control::encode_dict(payload) {
             Ok(j) => j,
             Err(e) => {
                 warn!(error = %e, "command encode failed; dropping");

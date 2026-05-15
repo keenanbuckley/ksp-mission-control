@@ -67,6 +67,18 @@ function handleMessage {
             return.
         }
         toggleAg(content:n).
+    } else if op = "add_node" {
+        if not content:haskey("dv") {
+            print "dispatch_listener: add_node missing dv; dropping.".
+            return.
+        }
+        if not content:haskey("ut") {
+            print "dispatch_listener: add_node missing ut; dropping.".
+            return.
+        }
+        local n is node(content:ut, 0, 0, content:dv).
+        add n.
+        print "dispatch_listener: added node at ut=" + content:ut + " dv=" + content:dv + ".".
     } else if op = "run_script" {
         if not content:haskey("path") {
             print "dispatch_listener: run_script missing path; dropping.".
