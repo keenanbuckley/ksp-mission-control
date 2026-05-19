@@ -26,6 +26,7 @@
       <button id="toggle-ag1" disabled>Toggle AG1</button>
       <button id="launch" disabled>Launch</button>
       <button id="plan-circ" disabled>Plan Circ</button>
+      <button id="execute-node" disabled>Execute Node</button>
     </div>
   </main>
   <script>
@@ -36,6 +37,7 @@
     const toggleAg1Btn = document.getElementById("toggle-ag1");
     const launchBtn = document.getElementById("launch");
     const planCircBtn = document.getElementById("plan-circ");
+    const executeNodeBtn = document.getElementById("execute-node");
     const SECS_PER_HOUR = 3600;
     let calendar = null; // populated from status frames: { secs_per_day, secs_per_year }
     function encodeList(items) {
@@ -59,6 +61,7 @@
       toggleAg1Btn.disabled = !connected;
       launchBtn.disabled = !connected;
       planCircBtn.disabled = !connected;
+      executeNodeBtn.disabled = !connected;
     }
     toggleAg1Btn.addEventListener("click", () => {
       if (!activeWs || activeWs.readyState !== WebSocket.OPEN) return;
@@ -78,6 +81,17 @@
     planCircBtn.addEventListener("click", () => {
       if (!activeWs || activeWs.readyState !== WebSocket.OPEN) return;
       activeWs.send(JSON.stringify({ kind: "command", command: { op: "plan_circ" } }));
+    });
+    executeNodeBtn.addEventListener("click", () => {
+      if (!activeWs || activeWs.readyState !== WebSocket.OPEN) return;
+      activeWs.send(JSON.stringify({
+        kind: "command",
+        command: {
+          op: "run_script",
+          path: "maneuver.ks",
+          args: encodeList([]),
+        },
+      }));
     });
     function connect() {
       serverEl.textContent = "connecting...";
