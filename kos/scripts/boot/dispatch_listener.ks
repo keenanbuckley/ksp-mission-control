@@ -25,7 +25,7 @@ local SCRIPT_ARITY is lexicon(
 // kRPC client receives a JSON envelope it decodes via control::decode_dict.
 function sendEvent {
     parameter ev.
-    ADDON:KIPC:CONNECTION:SENDMESSAGE(ev).
+    ADDONS:KIPC:CONNECTION:SENDMESSAGE(ev).
 }
 
 function ackOp {
