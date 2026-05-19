@@ -110,6 +110,15 @@
         } else if (frame.kind === "node_planned" && calendar) {
           const { dv, ut } = frame.value;
           plannedEl.textContent = `Planned: dv=${dv.toFixed(2)} m/s at ${formatUT(ut)}`;
+        } else if (frame.kind === "command_ack") {
+          console.log("command_ack", frame.value);
+        } else if (frame.kind === "command_error") {
+          console.warn("command_error", frame.value);
+          if (frame.value.op === "plan_circ") {
+            plannedEl.textContent = "";
+          }
+        } else if (frame.kind === "script_done") {
+          console.log("script_done", frame.value);
         }
       };
     }

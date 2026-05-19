@@ -37,6 +37,50 @@ pub fn encode_list(items: serde_json::Value) -> serde_json::Value {
     })
 }
 
+/// Inverse of `encode_dict`. Reads a kIPC envelope string and returns the
+/// inner Lexicon as a JSON object. Handles both encoder shapes seen in the
+/// wild: payload in `data`, or split across parallel `keys` / `values`
+/// arrays (which is how kIPC's kerboscript-side encoder serializes a
+/// `Lexicon`).
+pub fn decode_dict(json: &str) -> Result<serde_json::Map<String, serde_json::Value>> {
+    let envelope: serde_json::Value = serde_json::from_str(json).context("parse envelope json")?;
+    let t = envelope
+        .get("type")
+        .and_then(|v| v.as_str())
+        .context("envelope missing type")?;
+    if t != "dict" {
+        anyhow::bail!("envelope type is {t}, expected dict");
+    }
+    if let Some(data) = envelope.get("data").and_then(|v| v.as_object()) {
+        if !data.is_empty() {
+            return Ok(data.clone());
+        }
+    }
+    let keys = envelope
+        .get("keys")
+        .and_then(|v| v.as_array())
+        .context("envelope missing keys")?;
+    let values = envelope
+        .get("values")
+        .and_then(|v| v.as_array())
+        .context("envelope missing values")?;
+    if keys.len() != values.len() {
+        anyhow::bail!(
+            "envelope keys/values length mismatch: {} vs {}",
+            keys.len(),
+            values.len()
+        );
+    }
+    let mut out = serde_json::Map::with_capacity(keys.len());
+    for (k, v) in keys.iter().zip(values.iter()) {
+        let key = k
+            .as_str()
+            .with_context(|| format!("non-string key in envelope: {k}"))?;
+        out.insert(key.to_string(), v.clone());
+    }
+    Ok(out)
+}
+
 pub async fn send_command(client: &Arc<Client>, json: &str) -> Result<()> {
     let sc = SpaceCenter::new(client.clone());
     let kipc = KIPC::new(client.clone());

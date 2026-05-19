@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use krpc_client::{
-    services::{krpc::KRPC, space_center::SpaceCenter},
+    services::{kipc::KIPC, krpc::KRPC, space_center::SpaceCenter},
     stream::Stream,
     Client,
 };
@@ -16,6 +16,7 @@ use tracing::{info, warn};
 const STREAM_RATE_HZ: f32 = 5.0;
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(2);
 const HEARTBEAT_TIMEOUT: Duration = Duration::from_secs(15);
+const INBOX_POLL_INTERVAL: Duration = Duration::from_millis(200);
 const INITIAL_BACKOFF: Duration = Duration::from_secs(1);
 const MAX_BACKOFF: Duration = Duration::from_secs(30);
 
@@ -24,6 +25,9 @@ const MAX_BACKOFF: Duration = Duration::from_secs(30);
 pub enum OutboundEvent {
     Ut(f64),
     NodePlanned { dv: f64, ut: f64 },
+    CommandAck { op: String },
+    CommandError { op: String, reason: String },
+    ScriptDone { path: String, ok: bool },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize)]
@@ -149,6 +153,7 @@ async fn run_session(
         res = run_stream_loop(&stream, &tx) => res,
         res = run_heartbeat(&krpc) => res,
         res = run_dispatcher(&client, command_rx, &tx) => res,
+        res = run_inbox_loop(&client, &tx) => res,
     }
 }
 
@@ -162,9 +167,14 @@ async fn run_dispatcher(
             warn!(payload = %cmd, "command not an object; dropping");
             continue;
         }
+        let op = cmd
+            .get("op")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown")
+            .to_string();
         let mut planned: Option<planning::CircPlan> = None;
-        let payload = match cmd.get("op").and_then(|v| v.as_str()) {
-            Some("plan_circ") => match planning::plan_circ(client).await {
+        let payload = match op.as_str() {
+            "plan_circ" => match planning::plan_circ(client).await {
                 Ok(plan) => {
                     info!(
                         dv = plan.dv,
@@ -175,7 +185,9 @@ async fn run_dispatcher(
                     json!({ "op": "add_node", "dv": plan.dv, "ut": plan.ut })
                 }
                 Err(e) => {
-                    warn!(error = format!("{e:#}"), "plan_circ planning failed");
+                    let reason = format!("{e:#}");
+                    warn!(error = %reason, "plan_circ planning failed");
+                    let _ = event_tx.send(OutboundEvent::CommandError { op, reason });
                     continue;
                 }
             },
@@ -184,12 +196,16 @@ async fn run_dispatcher(
         let json = match control::encode_dict(payload) {
             Ok(j) => j,
             Err(e) => {
-                warn!(error = %e, "command encode failed; dropping");
+                let reason = e.to_string();
+                warn!(error = %reason, "command encode failed; dropping");
+                let _ = event_tx.send(OutboundEvent::CommandError { op, reason });
                 continue;
             }
         };
         if let Err(e) = control::send_command(client, &json).await {
-            warn!(error = format!("{e:#}"), "command dispatch failed");
+            let reason = format!("{e:#}");
+            warn!(error = %reason, "command dispatch failed");
+            let _ = event_tx.send(OutboundEvent::CommandError { op, reason });
             continue;
         }
         if let Some(plan) = planned {
@@ -200,6 +216,60 @@ async fn run_dispatcher(
         }
     }
     Ok(())
+}
+
+async fn run_inbox_loop(
+    client: &Arc<Client>,
+    event_tx: &broadcast::Sender<OutboundEvent>,
+) -> Result<()> {
+    let kipc = KIPC::new(client.clone());
+    let mut tick = tokio::time::interval(INBOX_POLL_INTERVAL);
+    tick.tick().await;
+    loop {
+        tick.tick().await;
+        let count = kipc
+            .get_count_messages()
+            .await
+            .context("kipc get_count_messages")?;
+        if count <= 0 {
+            continue;
+        }
+        for _ in 0..count {
+            let raw = kipc.pop_message().await.context("kipc pop_message")?;
+            if raw.is_empty() {
+                break;
+            }
+            if let Some(event) = parse_inbound(&raw) {
+                let _ = event_tx.send(event);
+            }
+        }
+    }
+}
+
+fn parse_inbound(raw: &str) -> Option<OutboundEvent> {
+    let payload = match control::decode_dict(raw) {
+        Ok(p) => p,
+        Err(e) => {
+            warn!(error = %e, raw = %raw, "inbox: envelope decode failed");
+            return None;
+        }
+    };
+    let kind = payload.get("kind").and_then(|v| v.as_str())?;
+    match kind {
+        "command_ack" => {
+            let op = payload.get("op").and_then(|v| v.as_str())?.to_string();
+            Some(OutboundEvent::CommandAck { op })
+        }
+        "script_done" => {
+            let path = payload.get("path").and_then(|v| v.as_str())?.to_string();
+            let ok = payload.get("ok").and_then(|v| v.as_bool()).unwrap_or(true);
+            Some(OutboundEvent::ScriptDone { path, ok })
+        }
+        other => {
+            warn!(kind = %other, "inbox: unknown event kind; dropping");
+            None
+        }
+    }
 }
 
 async fn run_stream_loop(
