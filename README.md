@@ -22,7 +22,24 @@ The Launch -> Plan Circ -> Execute Node sequence is the current demo: ascend, pl
   - kIPC - kRPC <-> kOS bridge. The Rust server uses it via the `kipc::KIPC` API, and the kerboscript dispatcher uses it via `ADDONS:KIPC`. Install from either the [keenanbuckley/ksp-kipc](https://github.com/keenanbuckley/ksp-kipc) or [roxik0/ksp-kipc](https://github.com/roxik0/ksp-kipc) fork; the upstream `dewiniaid/ksp-kipc` is abandoned.
 - Rust toolchain (stable, edition 2021).
 
-## Install
+## Download
+
+Pre-built Linux x86_64 binaries are attached to each tagged release on the [Releases page](https://github.com/keenanbuckley/ksp-mission-control/releases). The archive bundles the `ksp-mission-control` server, the `deploy-kos` helper, and a copy of this README and LICENSE; the dashboard HTML and kerboscript are embedded in the binaries themselves, so no source tree is needed alongside them.
+
+```sh
+curl -L -o ksp-mission-control.tar.gz \
+  https://github.com/keenanbuckley/ksp-mission-control/releases/latest/download/ksp-mission-control-v0.1.0-linux-x86_64.tar.gz
+tar -xzf ksp-mission-control.tar.gz
+cd ksp-mission-control-v0.1.0-linux-x86_64
+./deploy-kos             # writes kerboscript into KSP Ships/Script/
+./ksp-mission-control    # starts the server on http://127.0.0.1:8080
+```
+
+On first run, `deploy-kos` prompts for the KSP `Ships/Script/` directory and writes the answer to `.kos.toml` in the current directory; subsequent runs reuse it. The destination can also be passed as `--path <dir>` or set via `KSP_SCRIPT_DIR=<dir>`. The scripts land under `Ships/Script/` (which kOS exposes as the archive volume, `0:`), preserving the `boot/` and `lib/` subdirectories.
+
+In-game, on the kOS processor of the vessel you want to drive, set its boot file to the deployed `boot/dispatch_listener.ks` (path `0:/boot/dispatch_listener.ks` on the archive volume).
+
+## Build from source
 
 ```sh
 git clone https://github.com/keenanbuckley/ksp-mission-control.git
@@ -30,15 +47,7 @@ cd ksp-mission-control
 cargo build --release
 ```
 
-Deploy the kerboscript to your KSP install:
-
-```sh
-cargo run --bin deploy-kos
-```
-
-On first run, `deploy-kos` prompts for the KSP `Ships/Script/` directory and writes the answer to `.kos.toml`; subsequent runs reuse it. The destination can also be passed as `--path <dir>` or set via `KSP_SCRIPT_DIR=<dir>`. This copies the `.ks` files from `kos/scripts/` into the KSP scripts directory (which kOS exposes as the archive volume, `0:`), preserving the `boot/` and `lib/` subdirectories.
-
-In-game, on the kOS processor of the vessel you want to drive, set its boot file to the deployed `boot/dispatch_listener.ks` (path `0:/boot/dispatch_listener.ks` on the archive volume).
+The build embeds `static/` and `kos/scripts/` into the binaries via `include_dir!`, so the resulting `target/release/ksp-mission-control` and `target/release/deploy-kos` are self-contained and can be moved out of the source tree. Deploy the kerboscript with `cargo run --bin deploy-kos` (or run the built binary directly).
 
 ## Run
 

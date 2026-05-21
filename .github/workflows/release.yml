@@ -1,0 +1,35 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build release binaries
+        run: cargo build --release --bins
+      - name: Package archive
+        run: |
+          dir="ksp-mission-control-${{ github.ref_name }}-linux-x86_64"
+          mkdir -p "dist/$dir"
+          cp target/release/ksp-mission-control \
+             target/release/deploy-kos \
+             README.md LICENSE \
+             "dist/$dir/"
+          tar -C dist -czf "$dir.tar.gz" "$dir"
+      - uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          files: ksp-mission-control-*.tar.gz
+          generate_release_notes: true
