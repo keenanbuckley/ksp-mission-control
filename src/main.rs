@@ -4,10 +4,14 @@ mod web;
 use std::path::Path;
 
 use anyhow::{anyhow, Result};
-use axum::{routing::get, Router};
-use ksp_mission_control::config;
+use axum::{
+    http::{header, StatusCode, Uri},
+    response::{IntoResponse, Response},
+    routing::get,
+    Router,
+};
+use ksp_mission_control::{assets::STATIC_DIR, config};
 use tokio::sync::{broadcast, mpsc, watch};
-use tower_http::services::ServeDir;
 use tracing::{info, warn};
 use tracing_subscriber::EnvFilter;
 
@@ -54,7 +58,7 @@ async fn main() -> Result<()> {
 
     let app = Router::new()
         .route("/ws", get(ws_handler))
-        .fallback_service(ServeDir::new("static"))
+        .fallback(static_handler)
         .with_state(AppState {
             event_tx,
             status_tx,
@@ -72,4 +76,28 @@ async fn main() -> Result<()> {
         },
     }
     Ok(())
+}
+
+async fn static_handler(uri: Uri) -> Response {
+    let path = uri.path().trim_start_matches('/');
+    let lookup = if path.is_empty() { "index.html" } else { path };
+    match STATIC_DIR.get_file(lookup) {
+        Some(file) => (
+            [(header::CONTENT_TYPE, content_type_for(lookup))],
+            file.contents(),
+        )
+            .into_response(),
+        None => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
+fn content_type_for(path: &str) -> &'static str {
+    match path.rsplit('.').next() {
+        Some("html") => "text/html; charset=utf-8",
+        Some("js") => "application/javascript",
+        Some("css") => "text/css; charset=utf-8",
+        Some("svg") => "image/svg+xml",
+        Some("json") => "application/json",
+        _ => "application/octet-stream",
+    }
 }

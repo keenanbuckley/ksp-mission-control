@@ -3,19 +3,15 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, Context, Result};
-use ksp_mission_control::config;
+use include_dir::Dir;
+use ksp_mission_control::{assets::KOS_SCRIPTS, config};
 
-const SRC_DIR: &str = "kos/scripts";
 const CONFIG_PATH: &str = ".kos.toml";
 
 fn main() -> Result<()> {
     let dest = resolve_dest()?;
-    let src = Path::new(SRC_DIR);
-    if !src.is_dir() {
-        return Err(anyhow!("source dir {} does not exist", src.display()));
-    }
     let mut count = 0;
-    copy_recursive(src, src, &dest, &mut count)?;
+    walk(&KOS_SCRIPTS, &dest, &mut count)?;
     println!("deployed {count} script(s) to {}", dest.display());
     Ok(())
 }
@@ -46,27 +42,23 @@ fn resolve_dest() -> Result<PathBuf> {
     ))
 }
 
-fn copy_recursive(root: &Path, current: &Path, dest_root: &Path, count: &mut u32) -> Result<()> {
-    for entry in fs::read_dir(current).with_context(|| format!("read_dir {}", current.display()))? {
-        let entry = entry?;
-        let path = entry.path();
-        let file_type = entry.file_type()?;
-        if file_type.is_dir() {
-            copy_recursive(root, &path, dest_root, count)?;
-        } else if file_type.is_file() && path.extension().is_some_and(|e| e == "ks") {
-            let rel = path
-                .strip_prefix(root)
-                .with_context(|| format!("strip prefix {}", root.display()))?;
+fn walk(current: &Dir<'static>, dest_root: &Path, count: &mut u32) -> Result<()> {
+    for file in current.files() {
+        let rel = file.path();
+        if rel.extension().is_some_and(|e| e == "ks") {
             let dest = dest_root.join(rel);
             if let Some(parent) = dest.parent() {
                 fs::create_dir_all(parent)
                     .with_context(|| format!("create_dir_all {}", parent.display()))?;
             }
-            fs::copy(&path, &dest)
-                .with_context(|| format!("copy {} -> {}", path.display(), dest.display()))?;
+            fs::write(&dest, file.contents())
+                .with_context(|| format!("write {}", dest.display()))?;
             *count += 1;
             println!("  {} -> {}", rel.display(), dest.display());
         }
+    }
+    for dir in current.dirs() {
+        walk(dir, dest_root, count)?;
     }
     Ok(())
 }
