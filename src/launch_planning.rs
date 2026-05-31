@@ -16,6 +16,10 @@ const V_MIN_UNREACHABLE: f64 = 1.0e9;
 /// resolves alt_phase2_entry to well under a meter.
 const DENSITY_SOLVE_ITERS: u32 = 40;
 
+/// Height (m) added above the sampled local terrain for the phase-0 clearance,
+/// covering the launch tower and minor relief between sample points.
+const TERRAIN_CLEARANCE_MARGIN: f64 = 150.0;
+
 /// Mission parameters chosen by the operator. Units as noted; q values in kPa.
 #[derive(Clone, Copy, Debug)]
 pub struct LaunchParams {
@@ -201,8 +205,13 @@ pub async fn plan_launch(client: &Arc<Client>, p: LaunchParams) -> Result<Launch
         .get_mean_altitude()
         .await
         .context("get launch altitude")?;
+    let launch_lat = flight.get_latitude().await.context("get launch latitude")?;
+    let launch_lng = flight
+        .get_longitude()
+        .await
+        .context("get launch longitude")?;
 
-    let terrain_max = sample_terrain_max(&body, launch_alt).await?;
+    let terrain_max = sample_terrain_max(&body, launch_lat, launch_lng, launch_alt, radius).await?;
 
     let v_up2 = v_upper_sq(mu, radius, p.final_altitude);
     let g_surf = mu / (radius * radius);
@@ -240,20 +249,31 @@ pub async fn plan_launch(client: &Arc<Client>, p: LaunchParams) -> Result<Launch
     })
 }
 
-/// Body-global max terrain height: the max of surface_height over a coarse
-/// lat/lng grid, floored at the launch-site altitude so the phase-0 clearance
-/// is never below where the vessel starts.
+/// Max terrain height the ascent must clear in phase 0: the max of
+/// surface_height sampled on great-circle rings around the launch site, floored
+/// at the launch-site altitude and lifted by a clearance margin. Local rather
+/// than body-global so a flat coastal pad (KSC eastward is ocean) starts the
+/// gravity turn low, in the high-authority low-q window, instead of holding
+/// vertical until it clears a distant mountain it never overflies.
 async fn sample_terrain_max(
     body: &krpc_client::services::space_center::CelestialBody,
+    lat: f64,
+    lng: f64,
     launch_alt: f64,
+    radius: f64,
 ) -> Result<f64> {
-    let lats = [-60.0, -30.0, 0.0, 30.0, 60.0];
-    let lngs = [0.0, 60.0, 120.0, 180.0, 240.0, 300.0];
-    let mut max_h = launch_alt;
-    for &lat in &lats {
-        for &lng in &lngs {
+    let ring_dists = [5_000.0, 15_000.0, 25_000.0];
+    let bearings = [0.0, 45.0, 90.0, 135.0, 180.0, 225.0, 270.0, 315.0];
+    let mut max_h = body
+        .surface_height(lat, lng)
+        .await
+        .context("sample surface height")?
+        .max(launch_alt);
+    for &dist in &ring_dists {
+        for &bearing in &bearings {
+            let (slat, slng) = dest_point(lat, lng, bearing, dist, radius);
             let h = body
-                .surface_height(lat, lng)
+                .surface_height(slat, slng)
                 .await
                 .context("sample surface height")?;
             if h > max_h {
@@ -261,7 +281,20 @@ async fn sample_terrain_max(
             }
         }
     }
-    Ok(max_h)
+    Ok(max_h + TERRAIN_CLEARANCE_MARGIN)
+}
+
+/// Great-circle destination: the lat/lng (deg) reached by traveling `dist`
+/// meters along `bearing` (deg) from (lat, lng) on a sphere of `radius`.
+fn dest_point(lat: f64, lng: f64, bearing: f64, dist: f64, radius: f64) -> (f64, f64) {
+    let ang = dist / radius;
+    let lat1 = lat.to_radians();
+    let lng1 = lng.to_radians();
+    let brg = bearing.to_radians();
+    let lat2 = (lat1.sin() * ang.cos() + lat1.cos() * ang.sin() * brg.cos()).asin();
+    let lng2 =
+        lng1 + (brg.sin() * ang.sin() * lat1.cos()).atan2(ang.cos() - lat1.sin() * lat2.sin());
+    (lat2.to_degrees(), lng2.to_degrees())
 }
 
 /// Bisects KSP's live density curve for the altitude where density equals
@@ -363,6 +396,18 @@ mod tests {
         // Target thinner than anything in range -> clamps toward hi.
         let above = solve_alt_for_density(rho_at, 1.0e-9, 0.0, 70_000.0, 40);
         assert!(above > 69_000.0, "expected near hi, got {above}");
+    }
+
+    #[test]
+    fn dest_point_moves_the_expected_distance_and_direction() {
+        // Due north from the equator: latitude rises by dist/radius radians, lng unchanged.
+        let (lat, lng) = dest_point(0.0, 0.0, 0.0, 60_000.0, KERBIN_R);
+        assert!((lat - (60_000.0_f64 / KERBIN_R).to_degrees()).abs() < 1.0e-6);
+        assert!(lng.abs() < 1.0e-6);
+        // Due east from the equator: lng rises by dist/radius radians, lat ~ unchanged.
+        let (lat_e, lng_e) = dest_point(0.0, 0.0, 90.0, 60_000.0, KERBIN_R);
+        assert!(lat_e.abs() < 1.0e-6);
+        assert!((lng_e - (60_000.0_f64 / KERBIN_R).to_degrees()).abs() < 1.0e-3);
     }
 
     #[test]

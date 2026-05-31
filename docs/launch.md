@@ -52,9 +52,12 @@ aligns with the azimuth.
 
 The phases differ only in where `target_pitch` comes from and how large `alpha_max` is:
 
-- **Phase 0, vertical climb.** Hold vertical under SAS. Exit once altitude clears the body's
-  max terrain height AND there is enough airspeed for aerodynamic control authority (or the
-  vehicle is already past the dense-atmosphere regime, in which case phase 1 is skipped).
+- **Phase 0, vertical climb.** Hold vertical under SAS. Exit once altitude clears the local
+  terrain around the launch site AND there is enough airspeed for aerodynamic control
+  authority (or the vehicle is already past the dense-atmosphere regime, in which case phase 1
+  is skipped). Clearing only local terrain (rather than the body's tallest peak) keeps the
+  vertical climb short so the gravity turn starts early, while there is still low-q AoA
+  authority to establish it.
 - **Phase 1, gravity turn.** Active in the high-density regime. `target_pitch` follows a
   smooth cosine profile from `initialProfilePitch` down to a predicted `terminalPitch`, keyed
   on altitude. `alpha_max` tapers with dynamic pressure (`alphaMax(q)`): generous at low q,
@@ -125,7 +128,7 @@ kOS. They are not inputs, but knowing them helps when reasoning about behavior:
 
 | Value | Meaning |
 |---|---|
-| `terrainMax` | Body-global maximum terrain height. Phase 0 holds vertical until the vehicle clears this, so a launch near a mountain cannot start the turn into terrain. Conservative for flat eastward launches (you clear a notional peak you are not actually flying over). |
+| `terrainMax` | Max terrain height sampled on rings around the launch site, plus a clearance margin. Phase 0 holds vertical until the vehicle clears this, so a pad ringed by hills cannot start the turn into terrain. Local rather than body-global so a flat coastal pad starts the turn low instead of clearing a distant peak it never overflies. |
 | `vMin` | Airspeed that produces `qAuth` at launch-site density. The phase-0 velocity gate. On airless bodies it is set unreachably high so phase 0 exits on altitude alone. |
 | `altPhase2Entry` | Altitude where atmospheric density crosses the phase-1 / phase-2 threshold (`2 qMax / v_upper^2`, solved against the body's real density curve). The gravity-turn-to-pitch_min handoff altitude. |
 | `terminalPitch` | Predicted `pitch_min` at `altPhase2Entry`, used as the phase-1 cosine profile's endpoint so the handoff to phase 2 is smooth. A rough estimate; any error is absorbed by the cascade controller, which has wide authority at the low q of the handoff. |
