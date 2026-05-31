@@ -102,9 +102,9 @@ lock throttle to throttleForQMax(qMaxAtm, throttleMin).
 // Pitch elevation (deg above the local horizon) of the surface-velocity vector.
 // Returns vertical while velocity is undefined so phase-0 handoff has a value.
 function progradePitch {
-    local v is ship:velocity:surface.
-    if v:mag < 0.01 { return 90. }
-    return 90 - vAng(ship:up:vector, v:normalized).
+    local srfVel is ship:velocity:surface.
+    if srfVel:mag < 0.01 { return 90. }
+    return 90 - vAng(ship:up:vector, srfVel:normalized).
 }
 
 // AoA-spending budget: high at low q, tapering to aMaxLow as q approaches qHigh.
