@@ -45,9 +45,9 @@ impl Default for LaunchParams {
             q_max: 20.0,
             q_auth: 0.7,
             q_high: 20.0,
-            a_max_high: 10.0,
+            a_max_high: 15.0,
             a_max_low: 2.0,
-            initial_profile_pitch: 85.0,
+            initial_profile_pitch: 80.0,
             t_ap_target: 30.0,
             throttle_min: 0.1,
         }
@@ -417,7 +417,7 @@ mod tests {
         assert_eq!(p.final_altitude, 120_000.0);
         assert_eq!(p.q_max, 35.0);
         assert_eq!(p.t_ap_target, 30.0); // default
-        assert_eq!(p.initial_profile_pitch, 85.0); // default
+        assert_eq!(p.initial_profile_pitch, 80.0); // default
     }
 
     #[test]
