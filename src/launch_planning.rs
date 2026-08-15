@@ -12,9 +12,10 @@ const KPA_TO_PA: f64 = 1000.0;
 /// phase-0 velocity gate simply never fire, so phase 0 exits on altitude alone.
 const V_MIN_UNREACHABLE: f64 = 1.0e9;
 
-/// Iterations for the density bisection. ~30 halvings of a sub-100 km range
-/// resolves alt_phase2_entry to well under a meter.
-const DENSITY_SOLVE_ITERS: u32 = 40;
+/// Iterations for the density bisection. Each one is a kRPC round-trip, so the
+/// count is the precision/latency trade: 25 halvings resolve a sub-100 km range
+/// to a few millimetres, far below what the altitude threshold needs.
+const DENSITY_SOLVE_ITERS: u32 = 25;
 
 /// Height (m) added above the sampled local terrain for the phase-0 clearance,
 /// covering the launch tower and minor relief between sample points.
@@ -120,6 +121,25 @@ pub fn v_est_at(v_upper_sq: f64, alt_phase2_entry: f64, final_alt: f64) -> f64 {
     (v_upper_sq * alt_phase2_entry / final_alt).sqrt()
 }
 
+/// Altitude to sample next for a bracket, and the bracket's final answer.
+pub fn bracket_mid(a: f64, b: f64) -> f64 {
+    0.5 * (a + b)
+}
+
+/// One bisection step against a monotonic-decreasing density curve: given a
+/// bracket and the density sampled at its midpoint, returns the narrowed
+/// bracket. A midpoint denser than the target puts the boundary above it.
+///
+/// The sync and async solvers both step through this, so the two cannot drift.
+pub fn bisect_step(a: f64, b: f64, rho_mid: f64, target: f64) -> (f64, f64) {
+    let mid = bracket_mid(a, b);
+    if rho_mid > target {
+        (mid, b)
+    } else {
+        (a, mid)
+    }
+}
+
 /// Bisection for the altitude where a monotonic-decreasing density equals
 /// `target`, over [lo, hi]. `rho_at` samples density at an altitude. If the
 /// target lies outside [rho(hi), rho(lo)] the result clamps to the matching
@@ -133,14 +153,10 @@ pub fn solve_alt_for_density<F: Fn(f64) -> f64>(
 ) -> f64 {
     let (mut a, mut b) = (lo, hi);
     for _ in 0..iters {
-        let mid = 0.5 * (a + b);
-        if rho_at(mid) > target {
-            a = mid;
-        } else {
-            b = mid;
-        }
+        let rho = rho_at(bracket_mid(a, b));
+        (a, b) = bisect_step(a, b, rho, target);
     }
-    0.5 * (a + b)
+    bracket_mid(a, b)
 }
 
 /// Assembles the 14-key config Lexicon kOS reads. qAuth is intentionally absent:
@@ -214,7 +230,6 @@ pub async fn plan_launch(client: &Arc<Client>, p: LaunchParams) -> Result<Launch
     let terrain_max = sample_terrain_max(&body, launch_lat, launch_lng, launch_alt, radius).await?;
 
     let v_up2 = v_upper_sq(mu, radius, p.final_altitude);
-    let g_surf = mu / (radius * radius);
 
     let rho_launch = if has_atm {
         body.density_at(launch_alt)
@@ -238,8 +253,13 @@ pub async fn plan_launch(client: &Arc<Client>, p: LaunchParams) -> Result<Launch
         terrain_max
     };
 
+    // Gravity at the handover altitude, not at the surface: kOS evaluates
+    // pitchMin against local g, so matching it here keeps the phase-1 profile
+    // endpoint and the phase-2 policy continuous across the boundary.
+    let r_entry = radius + alt_phase2_entry;
+    let g_entry = mu / (r_entry * r_entry);
     let v_est = v_est_at(v_up2, alt_phase2_entry, p.final_altitude);
-    let terminal_pitch = pitch_min_deg(g_surf, p.t_ap_target, v_est);
+    let terminal_pitch = pitch_min_deg(g_entry, p.t_ap_target, v_est);
 
     Ok(LaunchDerived {
         terrain_max,
@@ -298,8 +318,8 @@ fn dest_point(lat: f64, lng: f64, bearing: f64, dist: f64, radius: f64) -> (f64,
 }
 
 /// Bisects KSP's live density curve for the altitude where density equals
-/// `target`, over [lo, hi]. Density decreases with altitude, so a sample above
-/// the target means the boundary is higher up.
+/// `target`, over [lo, hi], stepping through the same `bisect_step` the sync
+/// solver uses. Each iteration costs one kRPC round-trip.
 async fn solve_alt_phase2(
     body: &krpc_client::services::space_center::CelestialBody,
     target: f64,
@@ -308,15 +328,13 @@ async fn solve_alt_phase2(
 ) -> Result<f64> {
     let (mut a, mut b) = (lo, hi);
     for _ in 0..DENSITY_SOLVE_ITERS {
-        let mid = 0.5 * (a + b);
-        let rho = body.density_at(mid).await.context("sample density")?;
-        if rho > target {
-            a = mid;
-        } else {
-            b = mid;
-        }
+        let rho = body
+            .density_at(bracket_mid(a, b))
+            .await
+            .context("sample density")?;
+        (a, b) = bisect_step(a, b, rho, target);
     }
-    Ok(0.5 * (a + b))
+    Ok(bracket_mid(a, b))
 }
 
 #[cfg(test)]
@@ -382,6 +400,38 @@ mod tests {
         assert!(
             (solved - closed_form).abs() < 50.0,
             "solved {solved} vs {closed_form}"
+        );
+    }
+
+    #[test]
+    fn bisect_step_narrows_toward_the_boundary() {
+        // Midpoint denser than target: boundary is higher, keep the upper half.
+        assert_eq!(bisect_step(0.0, 100.0, 1.0, 0.5), (50.0, 100.0));
+        // Midpoint thinner than target: boundary is lower, keep the lower half.
+        assert_eq!(bisect_step(0.0, 100.0, 0.1, 0.5), (0.0, 50.0));
+        // Every step halves the bracket.
+        let (a, b) = bisect_step(20.0, 60.0, 1.0, 0.5);
+        assert!((b - a - 20.0).abs() < 1.0e-12);
+    }
+
+    #[test]
+    fn terminal_pitch_uses_gravity_at_handover_not_at_the_surface() {
+        // Surface g overstates gravity at the phase-2 boundary, which would
+        // command a steeper terminal pitch than phase 2 actually flies.
+        let alt_entry = 30_000.0;
+        let v2 = v_upper_sq(KERBIN_MU, KERBIN_R, 80_000.0);
+        let v_est = v_est_at(v2, alt_entry, 80_000.0);
+
+        let g_surf = KERBIN_MU / (KERBIN_R * KERBIN_R);
+        let r_entry = KERBIN_R + alt_entry;
+        let g_entry = KERBIN_MU / (r_entry * r_entry);
+        assert!(g_entry < g_surf);
+
+        let at_surface = pitch_min_deg(g_surf, 30.0, v_est);
+        let at_entry = pitch_min_deg(g_entry, 30.0, v_est);
+        assert!(
+            at_entry < at_surface,
+            "local-g pitch {at_entry} should be shallower than surface-g {at_surface}"
         );
     }
 
