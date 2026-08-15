@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use krpc_client::{services::space_center::SpaceCenter, Client};
+use tracing::info;
 
 /// Pa per kPa. User-facing q params arrive in kPa; the density math is SI.
 const KPA_TO_PA: f64 = 1000.0;
@@ -190,6 +191,7 @@ pub async fn plan_launch(client: &Arc<Client>, p: LaunchParams) -> Result<Launch
     let vessel = sc.get_active_vessel().await.context("get active vessel")?;
     let orbit = vessel.get_orbit().await.context("get vessel orbit")?;
     let body = orbit.get_body().await.context("get orbit body")?;
+    let body_name = body.get_name().await.context("get body name")?;
 
     let mu = body
         .get_gravitational_parameter()
@@ -244,8 +246,12 @@ pub async fn plan_launch(client: &Arc<Client>, p: LaunchParams) -> Result<Launch
         V_MIN_UNREACHABLE
     };
 
+    let rho_thr = if has_atm {
+        rho_threshold(p.q_max, v_up2)
+    } else {
+        0.0
+    };
     let alt_phase2_entry = if has_atm {
-        let rho_thr = rho_threshold(p.q_max, v_up2);
         solve_alt_phase2(&body, rho_thr, terrain_max, atm_depth)
             .await?
             .max(terrain_max)
@@ -260,6 +266,24 @@ pub async fn plan_launch(client: &Arc<Client>, p: LaunchParams) -> Result<Launch
     let g_entry = mu / (r_entry * r_entry);
     let v_est = v_est_at(v_up2, alt_phase2_entry, p.final_altitude);
     let terminal_pitch = pitch_min_deg(g_entry, p.t_ap_target, v_est);
+
+    // The constants the ascent is flown against. Nothing downstream reports
+    // them: kOS prints to the in-game terminal, and a flight recording shows
+    // only their effect, so a bad regime split has to be back-inferred from
+    // the trajectory unless it is recorded here.
+    info!(
+        terrain_max,
+        v_min = v_min_val,
+        alt_phase2_entry,
+        terminal_pitch,
+        rho_launch,
+        rho_threshold = rho_thr,
+        v_upper = v_up2.sqrt(),
+        v_est,
+        g_entry,
+        body = %body_name,
+        "launch constants solved"
+    );
 
     Ok(LaunchDerived {
         terrain_max,

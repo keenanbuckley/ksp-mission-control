@@ -199,6 +199,7 @@ async fn run_dispatcher(
                 let params = launch_planning::LaunchParams::from_args(
                     cmd.get("args").unwrap_or(&serde_json::Value::Null),
                 );
+                info!(?params, "launch params received");
                 match launch_planning::plan_launch(client, params).await {
                     Ok(derived) => {
                         let cfg = launch_planning::build_launch_payload(&params, &derived);
