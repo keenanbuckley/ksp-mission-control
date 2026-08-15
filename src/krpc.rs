@@ -7,7 +7,7 @@ use krpc_client::{
     stream::Stream,
     Client,
 };
-use ksp_mission_control::{control, planning};
+use ksp_mission_control::{control, launch_planning, planning};
 use serde::Serialize;
 use serde_json::json;
 use tokio::sync::{broadcast, mpsc, watch};
@@ -191,6 +191,32 @@ async fn run_dispatcher(
                     continue;
                 }
             },
+            // Launch carries derived constants the kOS script can't compute
+            // cheaply. Pre-compute them from mission params plus live body data
+            // (several RPC round-trips, one shot) and ship them in the config
+            // Lexicon. Other run_script paths pass through untouched.
+            "run_script" if cmd.get("path").and_then(|v| v.as_str()) == Some("launch.ks") => {
+                let params = launch_planning::LaunchParams::from_args(
+                    cmd.get("args").unwrap_or(&serde_json::Value::Null),
+                );
+                info!(?params, "launch params received");
+                match launch_planning::plan_launch(client, params).await {
+                    Ok(derived) => {
+                        let cfg = launch_planning::build_launch_payload(&params, &derived);
+                        json!({
+                            "op": "run_script",
+                            "path": "launch.ks",
+                            "args": control::encode_dict_value(cfg),
+                        })
+                    }
+                    Err(e) => {
+                        let reason = format!("{e:#}");
+                        warn!(error = %reason, "launch planning failed");
+                        let _ = event_tx.send(OutboundEvent::CommandError { op, reason });
+                        continue;
+                    }
+                }
+            }
             _ => cmd,
         };
         let json = match control::encode_dict(payload) {

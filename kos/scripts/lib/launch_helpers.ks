@@ -44,6 +44,31 @@ function throttleForThrust {
     }
 }
 
+function throttleForQMax {
+    parameter qMaxAtm.            // dynamic-pressure ceiling, in atmospheres
+    parameter minThrottle is 0.1.
+
+    // Solid boosters can't throttle, so the q ratio applies to the dynamic
+    // (liquid) engines only. With no dynamic engine, there's nothing to clamp:
+    // return minThrottle and let the solids run, accepting whatever q results.
+    local hasDynamic is false.
+    local myEngines is list().
+    list engines in myEngines.
+    for eng in myEngines {
+        if not eng:throttlelock { set hasDynamic to true. }
+    }.
+    if not hasDynamic { return minThrottle. }
+
+    // Self-correcting ratio: below qMax run full; above it, scale down so q
+    // converges toward qMax. dynamicpressure is in atmospheres, same as qMaxAtm.
+    local qNow is ship:dynamicpressure.
+    local targetThrottle is 1.0.
+    if qNow > qMaxAtm and qNow > 0 {
+        set targetThrottle to qMaxAtm / qNow.
+    }
+    return min(max(minThrottle, targetThrottle), 1.0).
+}
+
 function engineFlameout {
     local myEngines is list().
     list engines in myEngines.

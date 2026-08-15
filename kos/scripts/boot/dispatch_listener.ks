@@ -16,9 +16,11 @@ switch to 0.
 local MC_TAG       is "mc".
 local PASSIVE_POLL is 5.   // seconds between vessel-change re-checks
 
-local SCRIPT_ARITY is lexicon(
-    "launch.ks", 6,
-    "maneuver.ks", 0
+// Argument shape each runnable script expects: "lexicon" takes a single config
+// Lexicon, "none" takes no args.
+local SCRIPT_SHAPE is lexicon(
+    "launch.ks", "lexicon",
+    "maneuver.ks", "none"
 ).
 
 // Lifecycle events back to the server. kIPC serializes the Lexicon; the
@@ -103,37 +105,35 @@ function handleMessage {
             print "dispatch_listener: run_script missing path; dropping.".
             return.
         }
-        if not content:haskey("args") {
-            print "dispatch_listener: run_script missing args; dropping.".
-            return.
-        }
         local p is content:path.
-        local a is content:args.
-        if not a:istype("List") {
-            print "dispatch_listener: run_script args must be a list; dropping.".
-            return.
-        }
-        if not SCRIPT_ARITY:haskey(p) {
+        if not SCRIPT_SHAPE:haskey(p) {
             print "dispatch_listener: unknown script: /" + p + "; dropping.".
-            return.
-        }
-        local expected is SCRIPT_ARITY[p].
-        if a:length <> expected {
-            print "dispatch_listener: /" + p + " expects " + expected + " args; got " + a:length + "; dropping.".
             return.
         }
         if not exists("/" + p) {
             print "dispatch_listener: script not found: /" + p + "; dropping.".
             return.
         }
-        ackOp(op).
-        print "dispatch_listener: running /" + p + ".".
-        if expected = 0 {
+        local shape is SCRIPT_SHAPE[p].
+        if shape = "none" {
+            ackOp(op).
+            print "dispatch_listener: running /" + p + ".".
             runPath("/" + p).
-        } else if expected = 6 {
-            runPath("/" + p, a[0], a[1], a[2], a[3], a[4], a[5]).
+        } else if shape = "lexicon" {
+            if not content:haskey("args") {
+                print "dispatch_listener: run_script missing args; dropping.".
+                return.
+            }
+            local a is content:args.
+            if not a:istype("Lexicon") {
+                print "dispatch_listener: run_script args must be a lexicon; dropping.".
+                return.
+            }
+            ackOp(op).
+            print "dispatch_listener: running /" + p + ".".
+            runPath("/" + p, a).
         } else {
-            print "dispatch_listener: arity " + expected + " has no runPath form; dropping.".
+            print "dispatch_listener: unknown shape " + shape + " for /" + p + "; dropping.".
             return.
         }
         print "dispatch_listener: /" + p + " returned.".

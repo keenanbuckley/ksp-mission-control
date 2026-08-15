@@ -18,13 +18,21 @@ use tracing::warn;
 /// `encode_list` or a sub-`encode_dict`. kIPC's per-element deserializer
 /// only treats primitives (number/string/bool) as untagged.
 pub fn encode_dict(payload: serde_json::Value) -> Result<String> {
-    let envelope = serde_json::json!({
+    Ok(serde_json::to_string(&encode_dict_value(payload))?)
+}
+
+/// Same dict envelope as `encode_dict` but returned as an unserialized `Value`,
+/// for embedding a sub-Lexicon as a value inside a payload passed to
+/// `encode_dict`. The receiving kerboscript sees this value as a nested
+/// `Lexicon`. As with `encode_dict`, any container values inside `payload`
+/// must themselves be pre-wrapped (primitives stay untagged).
+pub fn encode_dict_value(payload: serde_json::Value) -> serde_json::Value {
+    serde_json::json!({
         "type": "dict",
         "data": payload,
         "keys": [],
         "values": [],
-    });
-    Ok(serde_json::to_string(&envelope)?)
+    })
 }
 
 /// Wraps a JSON array in kIPC's list envelope: `{"type":"list","data":[...]}`.

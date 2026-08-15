@@ -70,11 +70,13 @@ The launch script makes a few assumptions about the vessel:
 - **AG1 fires automatically at the edge of space.** Once surface velocity passes ~1 km/s with dynamic pressure under `0.01`, the script triggers Action Group 1. Bind deploy-on-exit-atmosphere parts to AG1 when assembling the rocket: fairing decouplers, comms antennas, solar panels. The Toggle AG1 button is wired to the same group for manual firing.
 - **Launch clamps drive the countdown.** The script counts how many staging events it takes to release all `LaunchClamp` parts from the current stage and spreads them across the countdown so the lowest-numbered clamp stage fires at T-0. Any pre-clamp stages (typically main-engine ignition) fire on the ticks before. Use launch clamps for KSC-style launches.
 - **Auto-stages on flameout or zero thrust.** A continuous trigger stages whenever `maxThrust` reaches zero or any engine flames out. Order the staging so each spent engine cluster decouples cleanly into its own stage.
-- **Throttle is locked to a target TWR (default 2.0).** Insufficient thrust pegs the throttle at 100% and slows the ascent; excess thrust is throttled down. Size first-stage engines to clear the target with headroom.
+- **Throttle is max throttle clamped by dynamic pressure.** Thrust is full unless dynamic pressure would exceed `qMax` (default 20 kPa), in which case the throttle scales back to hold the cap. Size first-stage engines for full-thrust ascent; a draggy or fragile stack wants a lower `qMax`.
+
+The ascent itself is a regime-aware, closed-loop gravity turn. See [docs/launch.md](docs/launch.md) for how it works and a full reference of the launch parameters (with reasonable ranges for tuning).
 
 ## Architecture
 
-The server is a single Rust process. Modules wired by tokio channels: `src/krpc.rs` owns the kRPC client and streams and publishes telemetry over a `broadcast::Sender`; `src/web.rs` is the Axum WebSocket handler that fans telemetry out to connected browsers; `src/main.rs` is the wiring. `src/planning.rs` holds the server-side circularization math, and `src/control.rs` holds the kIPC command dispatcher.
+The server is a single Rust process. Modules wired by tokio channels: `src/krpc.rs` owns the kRPC client and streams and publishes telemetry over a `broadcast::Sender`; `src/web.rs` is the Axum WebSocket handler that fans telemetry out to connected browsers; `src/main.rs` is the wiring. `src/planning.rs` holds the server-side circularization math, `src/launch_planning.rs` pre-computes the launch script's ascent constants, and `src/control.rs` holds the kIPC command dispatcher.
 
 The browser is plain HTML + vanilla JS (`static/index.html`), no build step. kOS scripts live under `kos/scripts/` with `boot/` and `lib/` subdirectories. The server pushes named ops (`run_script`, `plan_circ`, `toggle_ag`) over kIPC; the kerboscript dispatcher replies with `command_ack`, `script_done`, and `command_error` events.
 
