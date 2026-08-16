@@ -110,7 +110,8 @@
     });
     function connect() {
       serverEl.textContent = "connecting...";
-      const ws = new WebSocket(`ws://${location.host}/ws`);
+      const wsScheme = location.protocol === "https:" ? "wss:" : "ws:";
+      const ws = new WebSocket(`${wsScheme}//${location.host}/ws`);
       activeWs = ws;
       ws.onopen = () => {
         backoffMs = INITIAL_BACKOFF_MS;
