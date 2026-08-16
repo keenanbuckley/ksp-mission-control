@@ -57,7 +57,7 @@ Start the server:
 cargo run
 ```
 
-The server binds `http://127.0.0.1:8080` and supervises the kRPC connection in the background. Order between KSP and the server does not matter: the supervisor retries kRPC with exponential backoff (logs `kRPC connect failed; retrying`), and the dashboard shows "KSP: not connected" until kRPC at `127.0.0.1:50000` / `50001` is reachable. Once it is, the dashboard auto-promotes to "KSP: connected" and Universal Time starts ticking.
+The server binds `http://127.0.0.1:8080` by default and supervises the kRPC connection in the background. Set `KSMC_BIND=<ip>:<port>` to listen elsewhere: `KSMC_BIND=0.0.0.0:8080` accepts connections on every interface, so the dashboard is reachable from another device, and binding one specific address restricts it to that interface. The value must be an IP and port, not a hostname. The dashboard has no authentication and its command path can launch vessels and execute burns, so any non-loopback bind hands vessel control to whoever can reach the port. Order between KSP and the server does not matter: the supervisor retries kRPC with exponential backoff (logs `kRPC connect failed; retrying`), and the dashboard shows "KSP: not connected" until kRPC at `127.0.0.1:50000` / `50001` is reachable. Once it is, the dashboard auto-promotes to "KSP: connected" and Universal Time starts ticking.
 
 In KSP, load a vessel with a kOS processor running the boot script (see Install). The buttons activate as soon as kRPC reports the vessel.
 

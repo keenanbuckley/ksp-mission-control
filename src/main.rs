@@ -1,9 +1,11 @@
 mod krpc;
 mod web;
 
+use std::env;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::Path;
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use axum::{
     http::{header, StatusCode, Uri},
     response::{IntoResponse, Response},
@@ -21,7 +23,7 @@ use crate::web::ws_handler;
 const KRPC_HOST: &str = "127.0.0.1";
 const KRPC_RPC_PORT: u16 = 50000;
 const KRPC_STREAM_PORT: u16 = 50001;
-const BIND_ADDR: &str = "127.0.0.1:8080";
+const DEFAULT_BIND: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8080);
 const COMMAND_QUEUE_DEPTH: usize = 16;
 
 #[derive(Clone)]
@@ -42,6 +44,11 @@ async fn main() -> Result<()> {
     if let Err(e) = config::bootstrap_if_missing(Path::new(".kos.toml")) {
         warn!(error = %e, ".kos.toml bootstrap failed; deploy-kos will need a path source");
     }
+
+    let bind = resolve_bind()?;
+    let listener = tokio::net::TcpListener::bind(bind)
+        .await
+        .with_context(|| format!("bind {bind}"))?;
 
     let (event_tx, _) = broadcast::channel::<OutboundEvent>(64);
     let (status_tx, _) = watch::channel(ConnStatus::Disconnected);
@@ -65,8 +72,7 @@ async fn main() -> Result<()> {
             command_tx,
         });
 
-    let listener = tokio::net::TcpListener::bind(BIND_ADDR).await?;
-    info!("listening on http://{BIND_ADDR}");
+    info!("listening on http://{bind}");
 
     tokio::select! {
         res = axum::serve(listener, app) => res?,
@@ -76,6 +82,20 @@ async fn main() -> Result<()> {
         },
     }
     Ok(())
+}
+
+fn resolve_bind() -> Result<SocketAddr> {
+    if let Ok(v) = env::var("KSMC_BIND") {
+        if !v.is_empty() {
+            return v.parse().with_context(|| {
+                format!(
+                    "KSMC_BIND=\"{v}\" is not an IP:port address \
+                     (for example 127.0.0.1:8080, 0.0.0.0:8080, or [::]:8080)"
+                )
+            });
+        }
+    }
+    Ok(DEFAULT_BIND)
 }
 
 async fn static_handler(uri: Uri) -> Response {
