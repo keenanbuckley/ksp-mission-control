@@ -1,9 +1,9 @@
-use std::fs;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use krpc_client::{services::krpc::KRPC, Client};
 use serde_json::{Map, Value};
+use tokio::fs;
 
 fn type_code_str(value: i32) -> &'static str {
     match value {
@@ -147,12 +147,16 @@ fn wrap_service(
     Value::Object(top)
 }
 
-fn write_service_json(out_dir: &Path, name: &str, value: &Value) -> Result<()> {
+async fn write_service_json(out_dir: &Path, name: &str, value: &Value) -> Result<()> {
     let path = out_dir.join(format!("{name}.json"));
     let tmp = path.with_extension("json.tmp");
     let pretty = serde_json::to_string_pretty(value)?;
-    fs::write(&tmp, pretty).with_context(|| format!("write {}", tmp.display()))?;
-    fs::rename(&tmp, &path).with_context(|| format!("rename to {}", path.display()))?;
+    fs::write(&tmp, pretty)
+        .await
+        .with_context(|| format!("write {}", tmp.display()))?;
+    fs::rename(&tmp, &path)
+        .await
+        .with_context(|| format!("rename to {}", path.display()))?;
     Ok(())
 }
 
@@ -163,7 +167,9 @@ async fn main() -> Result<()> {
     let services = krpc.get_services().await?;
 
     let out_dir = PathBuf::from("service_definitions");
-    fs::create_dir_all(&out_dir).with_context(|| format!("create {}", out_dir.display()))?;
+    fs::create_dir_all(&out_dir)
+        .await
+        .with_context(|| format!("create {}", out_dir.display()))?;
 
     for service in &services.services {
         let procedures: Map<String, Value> = service
@@ -218,7 +224,7 @@ async fn main() -> Result<()> {
             classes,
             enumerations,
         );
-        write_service_json(&out_dir, &service.name, &value)?;
+        write_service_json(&out_dir, &service.name, &value).await?;
         println!(
             "wrote {}/{}.json ({} procedures, {} classes, {} enumerations)",
             out_dir.display(),
