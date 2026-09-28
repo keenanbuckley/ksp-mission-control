@@ -96,15 +96,26 @@ impl ScriptWatchdog {
         });
     }
 
-    /// A real `script_done` arrived. Matches on `(path, boot)` when the event
-    /// carries a boot, falling back to the oldest entry with that path.
+    /// A real `script_done` arrived. With a boot, it matches an entry of that
+    /// session, or an entry no session has claimed yet (a script rejected
+    /// before its first heartbeat). An event whose boot matches neither is
+    /// stale: kIPC persists its queue into the save file and replays it after
+    /// a load, so it must not remove a live run of the same script. Without a
+    /// boot, it matches the oldest entry with that path.
     pub fn on_done(&mut self, path: &str, boot: Option<&str>) {
-        let exact = boot.and_then(|b| {
-            self.entries
+        let found = match boot {
+            Some(b) => self
+                .entries
                 .iter()
                 .position(|e| e.path == path && e.boot.as_deref() == Some(b))
-        });
-        if let Some(i) = exact.or_else(|| self.entries.iter().position(|e| e.path == path)) {
+                .or_else(|| {
+                    self.entries
+                        .iter()
+                        .position(|e| e.path == path && e.boot.is_none())
+                }),
+            None => self.entries.iter().position(|e| e.path == path),
+        };
+        if let Some(i) = found {
             self.entries.remove(i);
         }
         // A clean finish sends no idle heartbeat, so this is the only signal
@@ -156,7 +167,9 @@ impl ScriptWatchdog {
             return Vec::new();
         }
 
-        let dt = now.saturating_duration_since(prev_at).min(MAX_UT_SAMPLE_GAP);
+        let dt = now
+            .saturating_duration_since(prev_at)
+            .min(MAX_UT_SAMPLE_GAP);
         self.link_silence += dt;
         if self.link.up && self.link_silence > HEARTBEAT_DEADLINE {
             self.link_down();
@@ -231,7 +244,12 @@ mod tests {
 
         /// Advance wall time by `wall`, one UT sample per tick, UT moving by
         /// `ut_per_tick` each sample. Returns all failures.
-        fn run(&mut self, wd: &mut ScriptWatchdog, wall: Duration, ut_per_tick: f64) -> Vec<Failure> {
+        fn run(
+            &mut self,
+            wd: &mut ScriptWatchdog,
+            wall: Duration,
+            ut_per_tick: f64,
+        ) -> Vec<Failure> {
             let mut out = Vec::new();
             let end = self.wall + wall;
             while self.wall <= end {
@@ -342,6 +360,31 @@ mod tests {
         wd.on_heartbeat(beat("c", None));
         wd.on_dispatch("maneuver.ks".into());
         wd.on_done("maneuver.ks", None);
+        assert!(c.run(&mut wd, secs(20), 0.2).is_empty());
+    }
+
+    #[test]
+    fn stale_done_from_a_dead_session_leaves_live_run_watched() {
+        let mut wd = ScriptWatchdog::new();
+        let mut c = Clock::new(&mut wd);
+        wd.on_heartbeat(beat("new", None));
+        wd.on_dispatch("launch.ks".into());
+        wd.on_heartbeat(beat("new", Some("launch.ks")));
+        // Replayed from the save file after a load.
+        wd.on_done("launch.ks", Some("old"));
+        assert_eq!(wd.link().running.as_deref(), Some("launch.ks"));
+        // Still watched: silence from here fails it.
+        let failed = c.run(&mut wd, secs(11), 0.2);
+        assert_eq!(failed.len(), 1);
+    }
+
+    #[test]
+    fn rejection_before_first_beat_matches_unclaimed_entry() {
+        let mut wd = ScriptWatchdog::new();
+        let mut c = Clock::new(&mut wd);
+        // Link down at dispatch, so the entry is unclaimed.
+        wd.on_dispatch("launch.ks".into());
+        wd.on_done("launch.ks", Some("a"));
         assert!(c.run(&mut wd, secs(20), 0.2).is_empty());
     }
 
