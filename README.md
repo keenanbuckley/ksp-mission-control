@@ -11,7 +11,7 @@ The server fronts a running KSP install and serves a small dashboard at `http://
 - **Execute Node** runs `maneuver.ks` to perform the next queued burn.
 - **Toggle AG1** flips Action Group 1.
 
-Launch alone is the current demo: one click, and kOS flies pad to orbit with no further messages from the server. Unchecking Circularize stops at the target apoapsis instead, and Plan Circ -> Execute Node then finishes the job from the browser.
+Launch alone is the current demo: one click, and kOS flies pad to orbit with no further messages from the server. Unchecking "Circularize at apoapsis" stops at the target apoapsis instead, and Plan Circ -> Execute Node then finishes the job from the browser.
 
 ## Requirements
 

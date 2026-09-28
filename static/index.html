@@ -34,33 +34,33 @@
     <div class="status error" id="error"></div>
     <form id="launch-form">
       <div class="params">
-        <label for="p-finalAltitude" title="Target apoapsis. Must be above the atmosphere (Kerbin: > 70 km). Reasonable: 75000 to 250000.">Final altitude (m)</label>
+        <label for="p-finalAltitude" title="Target apoapsis. Must be above the atmosphere (Kerbin: > 70 km). Reasonable: 75000 to 250000.">Target altitude (m)</label>
         <input id="p-finalAltitude" name="finalAltitude" type="number" step="any" min="0" />
-        <label for="p-targetInclination" title="Target orbital inclination. 0 is equatorial; clamped if unreachable from the launch latitude.">Inclination (deg)</label>
+        <label for="p-targetInclination" title="Target orbital inclination. 0 is equatorial; clamped if unreachable from the launch latitude.">Target inclination (deg)</label>
         <input id="p-targetInclination" name="targetInclination" type="number" step="any" min="0" max="180" />
-        <label for="p-targetLan" title="Longitude of ascending node to time the launch to. Negative launches immediately.">LAN (deg, -1 = now)</label>
+        <label for="p-targetLan" title="Longitude of ascending node to time the launch to. Negative launches immediately.">Longitude of ascending node (deg, -1 = launch now)</label>
         <input id="p-targetLan" name="targetLan" type="number" step="any" min="-1" max="360" />
-        <label for="p-qMax" title="Dynamic-pressure ceiling. Lower is gentler on the airframe; higher is more aggressive. Reasonable: 15 to 45.">qMax (kPa)</label>
+        <label for="p-qMax" title="Dynamic-pressure ceiling. Lower is gentler on the airframe; higher is more aggressive. Reasonable: 15 to 45.">Max dynamic pressure (kPa)</label>
         <input id="p-qMax" name="qMax" type="number" step="any" min="0" />
-        <label for="p-circularize" title="Plan and fly a circularization burn at apoapsis after the ascent.">Circularize</label>
+        <label for="p-circularize" title="Plan and fly a circularization burn at apoapsis after the ascent.">Circularize at apoapsis</label>
         <input id="p-circularize" name="circularize" type="checkbox" />
       </div>
       <details>
-        <summary>Advanced ascent</summary>
+        <summary>Advanced ascent settings</summary>
         <div class="params">
-          <label for="p-qAuth" title="Aerodynamic-authority floor that sets the phase-0 airspeed gate. Reasonable: 0.4 to 1.5.">qAuth (kPa)</label>
+          <label for="p-qAuth" title="Aerodynamic-authority floor that sets the phase-0 airspeed gate. Reasonable: 0.4 to 1.5.">Aerodynamic authority pressure (kPa)</label>
           <input id="p-qAuth" name="qAuth" type="number" step="any" min="0" />
-          <label for="p-qHigh" title="Dynamic pressure at which the AoA budget reaches its floor. Usually equal to qMax.">qHigh (kPa)</label>
+          <label for="p-qHigh" title="Dynamic pressure at which the AoA budget reaches its floor. Usually equal to the max dynamic pressure.">Pressure for minimum angle-of-attack limit (kPa)</label>
           <input id="p-qHigh" name="qHigh" type="number" step="any" min="0" />
-          <label for="p-aMaxHigh" title="Maximum angle of attack at low q. Reasonable: 5 to 20.">aMaxHigh (deg)</label>
+          <label for="p-aMaxHigh" title="Maximum angle of attack at low q. Reasonable: 5 to 20.">Max angle of attack at low pressure (deg)</label>
           <input id="p-aMaxHigh" name="aMaxHigh" type="number" step="any" min="0" max="90" />
-          <label for="p-aMaxLow" title="Minimum angle of attack near qHigh. Reasonable: 1 to 4.">aMaxLow (deg)</label>
+          <label for="p-aMaxLow" title="Minimum angle of attack near the minimum-limit pressure. Reasonable: 1 to 4.">Max angle of attack at high pressure (deg)</label>
           <input id="p-aMaxLow" name="aMaxLow" type="number" step="any" min="0" max="90" />
-          <label for="p-initialProfilePitch" title="Pitch above the horizon the phase-1 profile starts at. Lower turns sooner. Reasonable: 78 to 88.">Initial pitch (deg)</label>
+          <label for="p-initialProfilePitch" title="Pitch above the horizon the phase-1 profile starts at. Lower turns sooner. Reasonable: 78 to 88.">Initial pitch above horizon (deg)</label>
           <input id="p-initialProfilePitch" name="initialProfilePitch" type="number" step="any" min="0" max="90" />
-          <label for="p-tApTarget" title="Time-to-apoapsis floor held in phase 2. Raise it for a marginal upper stage. Reasonable: 20 to 60.">tApTarget (s)</label>
+          <label for="p-tApTarget" title="Time-to-apoapsis floor held in phase 2. Raise it for a marginal upper stage. Reasonable: 20 to 60.">Minimum time to apoapsis (s)</label>
           <input id="p-tApTarget" name="tApTarget" type="number" step="any" min="0" />
-          <label for="p-throttleMin" title="Throttle floor for the qMax controller. Reasonable: 0.05 to 0.25.">Throttle min (0..1)</label>
+          <label for="p-throttleMin" title="Throttle floor for the dynamic-pressure controller. Reasonable: 0.05 to 0.25.">Minimum throttle (0 to 1)</label>
           <input id="p-throttleMin" name="throttleMin" type="number" step="any" min="0" max="1" />
         </div>
       </details>
