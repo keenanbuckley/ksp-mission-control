@@ -1,8 +1,8 @@
 # Launch script
 
-`launch.ks` takes the active vessel from the pad to a target apoapsis, then cuts off and
-coasts out of the atmosphere ready for circularization. This document explains how the
-ascent works and what every input parameter does.
+`launch.ks` takes the active vessel from the pad to a target apoapsis, cuts off and coasts
+out of the atmosphere, then plans and flies a circularization burn at apoapsis. This
+document explains how the ascent works and what every input parameter does.
 
 The ascent is regime-aware: it changes control strategy based on where the vehicle is in
 the atmosphere, not on hand-tuned velocity thresholds. The goal is a program whose knobs map
@@ -101,9 +101,28 @@ altitude, the kOS script just compares its current altitude to that number.
 ### Preserved scaffolding
 
 The countdown and launch-clamp release, auto-staging on flameout, the AG1 fairing trigger,
-the coast-to-vacuum gate, the post-coast apoapsis touch-up burn, and the final hand-back of
-control are unchanged from earlier versions. See the Rocket-design notes in the
+the coast-to-vacuum gate, and the post-coast apoapsis touch-up burn are unchanged from
+earlier versions. See the Rocket-design notes in the
 [README](../README.md) for the clamp/staging/AG1 assumptions the vessel must satisfy.
+
+### Circularization
+
+Once the apoapsis touch-up is done, the script plans the circularization node itself from
+the live post-ascent orbit: `nodeChangePeriapsis(apoapsis)` in
+[lib/node.ks](../kos/scripts/lib/node.ks) raises the periapsis to the apoapsis altitude,
+with the burn's delta-v taken from vis-viva at apoapsis
+([lib/orbit.ks](../kos/scripts/lib/orbit.ks)). It is the same quantity the server's Plan
+Circ button computes over kRPC, computed where the orbit data already is. The node is then
+flown by [maneuver.ks](../kos/scripts/maneuver.ks), the same executor as the Execute Node
+button, so no server round-trip happens between the launch trigger and orbit.
+
+Before planning, any existing maneuver nodes are removed, since `maneuver.ks` executes the
+next node and a node made before the ascent no longer describes the orbit. If the save
+cannot make maneuver nodes yet (a career save before the facility upgrades that unlock
+them), the script stops at apoapsis and sets SAS to prograde. If the orbit has no valid
+circularization node (hyperbolic, or an apoapsis outside the sphere of influence), it stops
+at apoapsis. Both cases print the reason on the kOS terminal. Set `circularize` to false to
+stop at apoapsis deliberately.
 
 ## Input parameters
 
@@ -126,6 +145,7 @@ constants and forwards everything to kOS. Defaults target a healthy Kerbin rocke
 | `initialProfilePitch` | deg | 80 | 78 to 88 | Pitch the phase-1 profile starts at (degrees above horizon, so 80 is 10 degrees off vertical). Lower starts the gravity turn more aggressively. Higher is gentler; good for low-TWR or tippy rockets. |
 | `tApTarget` | s | 30 | 20 to 60 | Time-to-apoapsis floor that `pitch_min` holds in phase 2. Higher buys margin against thrust drops (low-TWR upper stages, flameouts) at the cost of more gravity loss; lower is closer to an optimal trajectory. Raise it for a known marginal stage. |
 | `throttleMin` | 0..1 | 0.1 | 0.05 to 0.25 | Throttle floor for the qMax controller, so engines with a high minimum-throttle threshold do not flame out when the ceiling pulls the throttle down. It also bounds how far the liquids can back off to offset solid thrust. |
+| `circularize` | bool | true | true or false | Plan and fly a circularization burn at apoapsis after the ascent. False stops at the target apoapsis and leaves circularization to the dashboard's Plan Circ and Execute Node buttons. |
 
 ### Tuning notes
 

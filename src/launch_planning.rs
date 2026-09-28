@@ -36,6 +36,7 @@ pub struct LaunchParams {
     pub initial_profile_pitch: f64, // deg
     pub t_ap_target: f64,           // s
     pub throttle_min: f64,          // 0..1
+    pub circularize: bool,          // burn to a circular orbit at apoapsis
 }
 
 impl Default for LaunchParams {
@@ -52,6 +53,7 @@ impl Default for LaunchParams {
             initial_profile_pitch: 80.0,
             t_ap_target: 30.0,
             throttle_min: 0.1,
+            circularize: true,
         }
     }
 }
@@ -75,6 +77,10 @@ impl LaunchParams {
             initial_profile_pitch: f("initialProfilePitch", d.initial_profile_pitch),
             t_ap_target: f("tApTarget", d.t_ap_target),
             throttle_min: f("throttleMin", d.throttle_min),
+            circularize: args
+                .get("circularize")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(d.circularize),
         }
     }
 }
@@ -160,7 +166,7 @@ pub fn solve_alt_for_density<F: Fn(f64) -> f64>(
     bracket_mid(a, b)
 }
 
-/// Assembles the 14-key config Lexicon kOS reads. qAuth is intentionally absent:
+/// Assembles the 15-key config Lexicon kOS reads. qAuth is intentionally absent:
 /// it is consumed here to derive v_min and never used kerboscript-side.
 pub fn build_launch_payload(p: &LaunchParams, d: &LaunchDerived) -> serde_json::Value {
     serde_json::json!({
@@ -174,6 +180,7 @@ pub fn build_launch_payload(p: &LaunchParams, d: &LaunchDerived) -> serde_json::
         "initialProfilePitch": p.initial_profile_pitch,
         "tApTarget": p.t_ap_target,
         "throttleMin": p.throttle_min,
+        "circularize": p.circularize,
         "terrainMax": d.terrain_max,
         "vMin": d.v_min,
         "altPhase2Entry": d.alt_phase2_entry,
@@ -492,6 +499,10 @@ mod tests {
         assert_eq!(p.q_max, 35.0);
         assert_eq!(p.t_ap_target, 30.0); // default
         assert_eq!(p.initial_profile_pitch, 80.0); // default
+        assert!(p.circularize); // default
+
+        let p = LaunchParams::from_args(&serde_json::json!({ "circularize": false }));
+        assert!(!p.circularize);
     }
 
     #[test]
@@ -508,5 +519,6 @@ mod tests {
         assert_eq!(payload["terrainMax"], 6800.0);
         assert_eq!(payload["altPhase2Entry"], 29_500.0);
         assert_eq!(payload["qMax"], 20.0);
+        assert_eq!(payload["circularize"], true);
     }
 }

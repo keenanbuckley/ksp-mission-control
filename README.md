@@ -6,12 +6,12 @@ A Rust + Axum dashboard that plans and executes Kerbal Space Program launches vi
 
 The server fronts a running KSP install and serves a small dashboard at `http://127.0.0.1:8080`. The dashboard exposes four buttons:
 
-- **Launch** runs `launch.ks` in-game, taking the active vessel up to a low orbit target apoapsis.
-- **Plan Circ** computes a circularization maneuver node server-side and queues it on the vessel.
+- **Launch** runs `launch.ks` in-game, taking the active vessel from the pad to a circular low orbit: ascent to the target apoapsis, then a circularization burn planned and flown by kOS.
+- **Plan Circ** computes a circularization maneuver node server-side and queues it on the vessel, for circularizing by hand.
 - **Execute Node** runs `maneuver.ks` to perform the next queued burn.
 - **Toggle AG1** flips Action Group 1.
 
-The Launch -> Plan Circ -> Execute Node sequence is the current demo: ascend, plan, circularize, all without leaving the browser.
+Launch alone is the current demo: one click, and kOS flies pad to orbit with no further messages from the server. Launching with `circularize: false` stops at the target apoapsis instead, and Plan Circ -> Execute Node then finishes the job from the browser.
 
 ## Requirements
 
@@ -61,7 +61,7 @@ The server binds `http://127.0.0.1:8080` by default and supervises the kRPC conn
 
 In KSP, load a vessel with a kOS processor running the boot script (see Install). The buttons activate as soon as kRPC reports the vessel.
 
-The Launch -> wait for apoapsis -> Plan Circ -> Execute Node sequence drives the vessel from the pad into a circular orbit.
+Launch drives the vessel from the pad into a circular orbit on its own. The dashboard shows `kOS: running launch.ks` until the circularization burn finishes.
 
 ## Rocket-design notes
 
