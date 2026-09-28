@@ -262,9 +262,17 @@ async fn run_dispatcher(
             // (several RPC round-trips, one shot) and ship them in the config
             // Lexicon. Other run_script paths pass through untouched.
             "run_script" if cmd.get("path").and_then(|v| v.as_str()) == Some("launch.ks") => {
-                let params = launch_planning::LaunchParams::from_args(
+                let params = match launch_planning::LaunchParams::from_args(
                     cmd.get("args").unwrap_or(&serde_json::Value::Null),
-                );
+                ) {
+                    Ok(p) => p,
+                    Err(e) => {
+                        let reason = format!("{e:#}");
+                        warn!(error = %reason, "launch args rejected");
+                        let _ = event_tx.send(OutboundEvent::CommandError { op, reason });
+                        continue;
+                    }
+                };
                 info!(?params, "launch params received");
                 match launch_planning::plan_launch(client, params).await {
                     Ok(derived) => {

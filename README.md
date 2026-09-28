@@ -6,12 +6,12 @@ A Rust + Axum dashboard that plans and executes Kerbal Space Program launches vi
 
 The server fronts a running KSP install and serves a small dashboard at `http://127.0.0.1:8080`. The dashboard exposes four buttons:
 
-- **Launch** runs `launch.ks` in-game, taking the active vessel from the pad to a circular low orbit: ascent to the target apoapsis, then a circularization burn planned and flown by kOS.
+- **Launch** runs `launch.ks` in-game, taking the active vessel from the pad to a circular low orbit: ascent to the target apoapsis, then a circularization burn planned and flown by kOS. A form above the buttons sets the mission parameters (target altitude, inclination, LAN, qMax, circularize, and the advanced ascent knobs), pre-filled with the server's defaults.
 - **Plan Circ** computes a circularization maneuver node server-side and queues it on the vessel, for circularizing by hand.
 - **Execute Node** runs `maneuver.ks` to perform the next queued burn.
 - **Toggle AG1** flips Action Group 1.
 
-Launch alone is the current demo: one click, and kOS flies pad to orbit with no further messages from the server. Launching with `circularize: false` stops at the target apoapsis instead, and Plan Circ -> Execute Node then finishes the job from the browser.
+Launch alone is the current demo: one click, and kOS flies pad to orbit with no further messages from the server. Unchecking Circularize stops at the target apoapsis instead, and Plan Circ -> Execute Node then finishes the job from the browser.
 
 ## Requirements
 
@@ -59,7 +59,7 @@ cargo run
 
 The server binds `http://127.0.0.1:8080` by default and supervises the kRPC connection in the background. Set `KSMC_BIND=<ip>:<port>` to listen elsewhere: `KSMC_BIND=0.0.0.0:8080` accepts connections on every interface, so the dashboard is reachable from another device, and binding one specific address restricts it to that interface. The value must be an IP and port, not a hostname. The dashboard has no authentication and its command path can launch vessels and execute burns, so any non-loopback bind hands vessel control to whoever can reach the port. Order between KSP and the server does not matter: the supervisor retries kRPC with exponential backoff (logs `kRPC connect failed; retrying`), and the dashboard shows "KSP: not connected" until kRPC at `127.0.0.1:50000` / `50001` is reachable. Once it is, the dashboard auto-promotes to "KSP: connected" and Universal Time starts ticking.
 
-In KSP, load a vessel with a kOS processor running the boot script (see Install). The buttons activate as soon as kRPC reports the vessel.
+In KSP, load a vessel with a kOS processor running the boot script (see Install). The buttons activate as soon as the kOS dispatcher answers. Launch, Plan Circ, and Execute Node are disabled while a script is running, since the dispatcher only reads new commands once it returns; Toggle AG1 stays available.
 
 Launch drives the vessel from the pad into a circular orbit on its own. The dashboard shows `kOS: running launch.ks` until the circularization burn finishes.
 

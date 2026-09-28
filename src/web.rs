@@ -5,6 +5,7 @@ use axum::{
     },
     response::IntoResponse,
 };
+use ksp_mission_control::launch_planning::LaunchParams;
 use serde_json::json;
 use tokio::sync::{broadcast, mpsc};
 use tracing::warn;
@@ -19,6 +20,15 @@ pub async fn ws_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> 
 async fn client_socket(mut socket: WebSocket, state: AppState) {
     let mut event_rx = state.event_tx.subscribe();
     let mut status_rx = state.status_tx.subscribe();
+
+    let defaults = json!({ "kind": "launch_defaults", "value": LaunchParams::default() });
+    if socket
+        .send(Message::Text(defaults.to_string().into()))
+        .await
+        .is_err()
+    {
+        return;
+    }
 
     // Send the current status snapshot up front so a freshly connected client
     // immediately knows whether KSP is reachable.
