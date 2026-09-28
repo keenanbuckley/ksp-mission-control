@@ -126,9 +126,12 @@ stop at apoapsis deliberately.
 
 ## Input parameters
 
-These are the user-facing mission parameters. The dashboard Launch button and the
+These are the user-facing mission parameters. The dashboard's launch form and the
 [send_launch example](../examples/send_launch.rs) send them; the server computes the derived
-constants and forwards everything to kOS. Defaults target a healthy Kerbin rocket going to
+constants and forwards everything to kOS. The form is pre-filled with the server's defaults,
+and any key a caller omits (an empty form field included) takes its default. An unknown or
+wrong-typed key rejects the launch with a `command_error` naming the key, and nothing is sent
+to kOS. Defaults target a healthy Kerbin rocket going to
 80 km LKO. They were validated under an earlier throttle law that let q reach about 33 kPa at
 `qMax = 20`; with the ceiling now enforced, the same defaults fly a lower-q ascent.
 

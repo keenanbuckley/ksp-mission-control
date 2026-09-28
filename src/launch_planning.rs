@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use krpc_client::{services::space_center::SpaceCenter, Client};
+use serde::{Deserialize, Serialize};
 use tracing::info;
 
 /// Pa per kPa. User-facing q params arrive in kPa; the density math is SI.
@@ -23,7 +24,10 @@ const DENSITY_SOLVE_ITERS: u32 = 25;
 const TERRAIN_CLEARANCE_MARGIN: f64 = 150.0;
 
 /// Mission parameters chosen by the operator. Units as noted; q values in kPa.
-#[derive(Clone, Copy, Debug)]
+/// The serde form is the camelCase wire shape the dashboard and kOS use; any
+/// key a caller omits takes its value from `Default`.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default, deny_unknown_fields)]
 pub struct LaunchParams {
     pub final_altitude: f64,        // m
     pub target_inclination: f64,    // deg
@@ -60,28 +64,13 @@ impl Default for LaunchParams {
 
 impl LaunchParams {
     /// Reads the user-facing keys out of the command's `args` object, falling
-    /// back to the Kerbin-LKO defaults for any key the caller omits.
-    pub fn from_args(args: &serde_json::Value) -> Self {
-        let d = Self::default();
-        let f =
-            |key: &str, fallback: f64| args.get(key).and_then(|v| v.as_f64()).unwrap_or(fallback);
-        Self {
-            final_altitude: f("finalAltitude", d.final_altitude),
-            target_inclination: f("targetInclination", d.target_inclination),
-            target_lan: f("targetLan", d.target_lan),
-            q_max: f("qMax", d.q_max),
-            q_auth: f("qAuth", d.q_auth),
-            q_high: f("qHigh", d.q_high),
-            a_max_high: f("aMaxHigh", d.a_max_high),
-            a_max_low: f("aMaxLow", d.a_max_low),
-            initial_profile_pitch: f("initialProfilePitch", d.initial_profile_pitch),
-            t_ap_target: f("tApTarget", d.t_ap_target),
-            throttle_min: f("throttleMin", d.throttle_min),
-            circularize: args
-                .get("circularize")
-                .and_then(|v| v.as_bool())
-                .unwrap_or(d.circularize),
+    /// back to the Kerbin-LKO defaults for any key the caller omits. A missing
+    /// `args` is all defaults; an unknown or wrong-typed key is an error.
+    pub fn from_args(args: &serde_json::Value) -> Result<Self> {
+        if args.is_null() {
+            return Ok(Self::default());
         }
+        Self::deserialize(args).context("launch args")
     }
 }
 
@@ -494,15 +483,56 @@ mod tests {
     #[test]
     fn from_args_uses_defaults_for_missing_keys() {
         let args = serde_json::json!({ "finalAltitude": 120_000.0, "qMax": 35.0 });
-        let p = LaunchParams::from_args(&args);
+        let p = LaunchParams::from_args(&args).unwrap();
         assert_eq!(p.final_altitude, 120_000.0);
         assert_eq!(p.q_max, 35.0);
         assert_eq!(p.t_ap_target, 30.0); // default
         assert_eq!(p.initial_profile_pitch, 80.0); // default
         assert!(p.circularize); // default
 
-        let p = LaunchParams::from_args(&serde_json::json!({ "circularize": false }));
+        let p = LaunchParams::from_args(&serde_json::json!({ "circularize": false })).unwrap();
         assert!(!p.circularize);
+    }
+
+    #[test]
+    fn from_args_null_is_default() {
+        let p = LaunchParams::from_args(&serde_json::Value::Null).unwrap();
+        assert_eq!(p, LaunchParams::default());
+    }
+
+    #[test]
+    fn from_args_rejects_unknown_key() {
+        assert!(LaunchParams::from_args(&serde_json::json!({ "qmax": 30.0 })).is_err());
+    }
+
+    #[test]
+    fn from_args_rejects_wrong_type() {
+        assert!(LaunchParams::from_args(&serde_json::json!({ "qMax": "30" })).is_err());
+    }
+
+    #[test]
+    fn defaults_round_trip() {
+        let d = LaunchParams::default();
+        let v = serde_json::to_value(d).unwrap();
+        assert_eq!(LaunchParams::from_args(&v).unwrap(), d);
+    }
+
+    #[test]
+    fn serialized_keys_match_payload_keys() {
+        let d = LaunchDerived {
+            terrain_max: 0.0,
+            v_min: 0.0,
+            alt_phase2_entry: 0.0,
+            terminal_pitch: 0.0,
+        };
+        let p = LaunchParams::default();
+        let payload = build_launch_payload(&p, &d);
+        let params = serde_json::to_value(p).unwrap();
+        for key in params.as_object().unwrap().keys() {
+            if key != "qAuth" {
+                assert!(payload.get(key).is_some(), "{key} missing from payload");
+            }
+        }
     }
 
     #[test]
