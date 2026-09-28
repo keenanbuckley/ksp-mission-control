@@ -44,29 +44,78 @@ function throttleForThrust {
     }
 }
 
-function throttleForQMax {
+// State for throttleForQCeiling. The Lexicon is mutated in place on every
+// call, so each throttle lock needs a fresh controller.
+function qCeilingController {
     parameter qMaxAtm.            // dynamic-pressure ceiling, in atmospheres
     parameter minThrottle is 0.1.
+    parameter tau is 2.           // s, time constant of the approach to qMax
+    parameter tauFilter is 0.5.   // s, smoothing on the disturbance estimate
 
-    // Solid boosters can't throttle, so the q ratio applies to the dynamic
-    // (liquid) engines only. With no dynamic engine, there's nothing to clamp:
-    // return minThrottle and let the solids run, accepting whatever q results.
-    local hasDynamic is false.
-    local myEngines is list().
-    list engines in myEngines.
-    for eng in myEngines {
-        if not eng:throttlelock { set hasDynamic to true. }
-    }.
-    if not hasDynamic { return minThrottle. }
+    return lexicon(
+        "qMaxAtm", qMaxAtm,
+        "minThrottle", minThrottle,
+        "tau", tau,
+        "tauFilter", tauFilter,
+        "lastT", -1,
+        "lastQ", 0,
+        "b", 0,
+        "bValid", false,
+        "cmd", 1.0).
+}
 
-    // Self-correcting ratio: below qMax run full; above it, scale down so q
-    // converges toward qMax. dynamicpressure is in atmospheres, same as qMaxAtm.
-    local qNow is ship:dynamicpressure.
-    local targetThrottle is 1.0.
-    if qNow > qMaxAtm and qNow > 0 {
-        set targetThrottle to qMaxAtm / qNow.
+// Throttle that holds dynamic pressure at or below qMax.
+//
+// Thrust moves q only through along-track acceleration, so
+// dq/dt = k * T + b with k = 2 q / (m v). Everything thrust can't change
+// (drag, gravity, density falloff) is b, estimated each tick from the measured
+// dq/dt minus the current thrust's share and low-passed. The commanded total
+// thrust makes dq/dt = (qMax - q) / tau, so q approaches qMax from below and
+// holds there. Units: q in atm, T in kN, m in t, v in m/s.
+//
+// throttleForThrust turns that total into a throttle, subtracting solid
+// thrust first. Solids can't be throttled once lit, so if they alone push q
+// past qMax the liquids sit at minThrottle and q follows the solids.
+function throttleForQCeiling {
+    parameter ctl.
+
+    local t is time:seconds.
+    local q is ship:dynamicpressure.
+    local dt is t - ctl["lastT"].
+    if ctl["lastT"] >= 0 and dt <= 0 { return ctl["cmd"]. }
+
+    local lastQ is ctl["lastQ"].
+    local stale is ctl["lastT"] < 0 or dt > 1.
+    set ctl["lastT"] to t.
+    set ctl["lastQ"] to q.
+    if stale {
+        set ctl["bValid"] to false.
+        set ctl["cmd"] to 1.0.
+        return 1.0.
     }
-    return min(max(minThrottle, targetThrottle), 1.0).
+
+    // k vanishes on the pad (v ~ 0) and above the atmosphere (q ~ 0), where
+    // there is no q to limit.
+    local v is ship:airspeed.
+    local k is 0.
+    if v > 0 { set k to 2 * q / (ship:mass * v). }
+    if k < 1e-12 {
+        set ctl["cmd"] to 1.0.
+        return 1.0.
+    }
+
+    local bRaw is (q - lastQ) / dt - k * ship:thrust.
+    if ctl["bValid"] {
+        set ctl["b"] to ctl["b"] + (bRaw - ctl["b"]) * min(1, dt / ctl["tauFilter"]).
+    } else {
+        set ctl["b"] to bRaw.
+        set ctl["bValid"] to true.
+    }
+
+    local qdotTarget is (ctl["qMaxAtm"] - q) / ctl["tau"].
+    local cmd is throttleForThrust((qdotTarget - ctl["b"]) / k, ctl["minThrottle"]).
+    set ctl["cmd"] to cmd.
+    return cmd.
 }
 
 function engineFlameout {

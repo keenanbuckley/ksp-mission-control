@@ -70,7 +70,7 @@ local countdownStart is max(stagingEvents, 3).
 
 from {local t is countdownStart.} until t < 0 step {set t to t - 1.} do {
     if t = stagingEvents {
-        // Full throttle so engines ignite during countdown. The qMax-controlled
+        // Full throttle so engines ignite during countdown. The q-ceiling
         // lock below replaces this once the countdown completes.
         print "" + t + ". Throttling up.".
         lock throttle to 1.0.
@@ -97,7 +97,8 @@ when ship:velocity:surface:mag > 1000 and ship:dynamicpressure < 0.01 then {
     ag1 on.
 }
 
-lock throttle to throttleForQMax(qMaxAtm, throttleMin).
+local qCtl is qCeilingController(qMaxAtm, throttleMin).
+lock throttle to throttleForQCeiling(qCtl).
 
 // Pitch elevation (deg above the local horizon) of the surface-velocity vector.
 // Returns vertical while velocity is undefined so phase-0 handoff has a value.
@@ -196,7 +197,8 @@ if ship:apoapsis < finalAltitude {
     kuniverse:timewarp:cancelwarp().
     wait until kuniverse:timewarp:isSettled().
     lock steering to prograde.
-    lock throttle to throttleForQMax(qMaxAtm, throttleMin).
+    set qCtl to qCeilingController(qMaxAtm, throttleMin).
+    lock throttle to throttleForQCeiling(qCtl).
     wait until ship:apoapsis > finalAltitude.
     lock throttle to 0.
 }
