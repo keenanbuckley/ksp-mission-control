@@ -27,9 +27,17 @@ const MAX_BACKOFF: Duration = Duration::from_secs(30);
 #[serde(tag = "kind", content = "value", rename_all = "snake_case")]
 pub enum OutboundEvent {
     Ut(f64),
-    NodePlanned { dv: f64, ut: f64 },
-    CommandAck { op: String },
-    CommandError { op: String, reason: String },
+    NodePlanned {
+        dv: f64,
+        ut: f64,
+    },
+    CommandAck {
+        op: String,
+    },
+    CommandError {
+        op: String,
+        reason: String,
+    },
     ScriptDone {
         path: String,
         ok: bool,
