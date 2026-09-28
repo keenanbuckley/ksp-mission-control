@@ -2,120 +2,81 @@
 
 @lazyGlobal off.
 
-function staticFlameout {
+// Lit solids. A per-stage snapshot: walking the engine list costs enough
+// instructions at the default IPU to starve the mainline if done every tick.
+// Solids light and burn out on stage events, so a stage change is the only
+// time the set changes.
+function litSolids {
     local myEngines is list().
     list engines in myEngines.
+    local lit is list().
     for eng in myEngines {
-        if eng:throttlelock and eng:flameout {
-            return true.
-        }
-    }.
-    return false.
+        if eng:throttlelock and eng:ignition and not eng:flameout { lit:add(eng). }
+    }
+    return lit.
 }
 
-function throttleForThrust {
-    parameter targetThrust.
-    parameter minThrottle is 0.0.
-
-    local staticThrust is 0.
-    local dynamicThrust is 0.
-
-    local myEngines is list().
-    list engines in myEngines.
-    for eng in myEngines {
-        if eng:throttlelock {
-            set staticThrust to staticThrust + eng:thrust.
-        }
-        else {
-            set dynamicThrust to dynamicThrust + eng:availableThrust.
-        }
-    }.
-
-    if staticFlameout() {
-        if dynamicThrust = 0 { return minThrottle. }
-        local adjThrottle is targetThrust / dynamicThrust.
-        return min(max(minThrottle, adjThrottle), 1.0).
-    }
-    else if dynamicThrust > 0 {
-        local adjThrottle is (targetThrust - staticThrust) / dynamicThrust.
-        return min(max(minThrottle, adjThrottle), 1.0).
-    } else {
-        return minThrottle.
-    }
-}
-
-// State for throttleForQCeiling. The Lexicon is mutated in place on every
-// call, so each throttle lock needs a fresh controller.
+// State for throttleForQCeiling. Each throttle lock needs a fresh controller.
 function qCeilingController {
     parameter qMaxAtm.            // dynamic-pressure ceiling, in atmospheres
     parameter minThrottle is 0.1.
     parameter tau is 2.           // s, time constant of the approach to qMax
-    parameter tauFilter is 0.5.   // s, smoothing on the disturbance estimate
+    parameter gain is 0.25.       // fraction of the dq/dt error corrected per tick
 
+    // Output is (qMax - q) / tau - dq/dt: the dq/dt error against the target
+    // rate. kOS takes the derivative on the measurement, not the error.
+    local pid is pidLoop(1 / tau, 0, 1).
+    set pid:setpoint to qMaxAtm.
     return lexicon(
-        "qMaxAtm", qMaxAtm,
+        "pid", pid,
         "minThrottle", minThrottle,
-        "tau", tau,
-        "tauFilter", tauFilter,
-        "lastT", -1,
-        "lastQ", 0,
-        "b", 0,
-        "bValid", false,
-        "cmd", 1.0).
+        "gain", gain,
+        "stageNum", stage:number,
+        "solids", litSolids()).
 }
 
 // Throttle that holds dynamic pressure at or below qMax.
 //
 // Thrust moves q only through along-track acceleration, so
-// dq/dt = k * T + b with k = 2 q / (m v). Everything thrust can't change
-// (drag, gravity, density falloff) is b, estimated each tick from the measured
-// dq/dt minus the current thrust's share and low-passed. The commanded total
-// thrust makes dq/dt = (qMax - q) / tau, so q approaches qMax from below and
-// holds there. Units: q in atm, T in kN, m in t, v in m/s.
+// dq/dt = k * T + b with k = 2 q / (m v). Each tick the total thrust moves
+// from the current thrust by a fraction of the dq/dt error over k, driving
+// dq/dt to (qMax - q) / tau: q approaches qMax from below and holds there.
+// The full correction would be deadbeat, and rings whenever the lock runs a
+// tick late. Units: q in atm, T in kN, m in t, v in m/s.
 //
-// throttleForThrust turns that total into a throttle, subtracting solid
-// thrust first. Solids can't be throttled once lit, so if they alone push q
-// past qMax the liquids sit at minThrottle and q follows the solids.
+// Solids can't be throttled once lit, so their thrust counts toward the total
+// and the liquids make up the rest. If the solids alone push q past qMax, the
+// liquids sit at minThrottle and q follows the solids.
 function throttleForQCeiling {
     parameter ctl.
 
-    local t is time:seconds.
-    local q is ship:dynamicpressure.
-    local dt is t - ctl["lastT"].
-    if ctl["lastT"] >= 0 and dt <= 0 { return ctl["cmd"]. }
-
-    local lastQ is ctl["lastQ"].
-    local stale is ctl["lastT"] < 0 or dt > 1.
-    set ctl["lastT"] to t.
-    set ctl["lastQ"] to q.
-    if stale {
-        set ctl["bValid"] to false.
-        set ctl["cmd"] to 1.0.
-        return 1.0.
+    if stage:number <> ctl["stageNum"] {
+        set ctl["stageNum"] to stage:number.
+        set ctl["solids"] to litSolids().
     }
+
+    local qNow is ship:dynamicpressure.
+    local qdotError is ctl["pid"]:update(time:seconds, qNow).
 
     // k vanishes on the pad (v ~ 0) and above the atmosphere (q ~ 0), where
     // there is no q to limit.
-    local v is ship:airspeed.
-    local k is 0.
-    if v > 0 { set k to 2 * q / (ship:mass * v). }
-    if k < 1e-12 {
-        set ctl["cmd"] to 1.0.
-        return 1.0.
-    }
+    local vAir is ship:airspeed.
+    if vAir <= 0 { return 1.0. }
+    local k is 2 * qNow / (ship:mass * vAir).
+    if k <= 0 { return 1.0. }
 
-    local bRaw is (q - lastQ) / dt - k * ship:thrust.
-    if ctl["bValid"] {
-        set ctl["b"] to ctl["b"] + (bRaw - ctl["b"]) * min(1, dt / ctl["tauFilter"]).
-    } else {
-        set ctl["b"] to bRaw.
-        set ctl["bValid"] to true.
+    local solidThrust is 0.
+    local liquidAvail is ship:availableThrust.
+    if not ctl["solids"]:empty {
+        for eng in ctl["solids"] {
+            set solidThrust to solidThrust + eng:thrust.
+            set liquidAvail to liquidAvail - eng:availableThrust.
+        }
     }
+    if liquidAvail <= 0 { return ctl["minThrottle"]. }
 
-    local qdotTarget is (ctl["qMaxAtm"] - q) / ctl["tau"].
-    local cmd is throttleForThrust((qdotTarget - ctl["b"]) / k, ctl["minThrottle"]).
-    set ctl["cmd"] to cmd.
-    return cmd.
+    local targetThrust is ship:thrust + ctl["gain"] * qdotError / k.
+    return min(max(ctl["minThrottle"], (targetThrust - solidThrust) / liquidAvail), 1.0).
 }
 
 function engineFlameout {

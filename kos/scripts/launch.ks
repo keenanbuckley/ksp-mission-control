@@ -85,11 +85,17 @@ from {local t is countdownStart.} until t < 0 step {set t to t - 1.} do {
     if t > 0 { wait 1. }
 }
 
-when maxThrust = 0 or engineFlameout() then {
-    print "Staging.".
-    stage.
-    wait until stage:ready.
-    wait 0.
+// Checked every 0.1 s rather than every tick: engineFlameout walks the engine
+// list, which is too expensive to run per tick within the default IPU.
+local stagingCheckAt is 0.
+when time:seconds > stagingCheckAt then {
+    set stagingCheckAt to time:seconds + 0.1.
+    if maxThrust = 0 or engineFlameout() {
+        print "Staging.".
+        stage.
+        wait until stage:ready.
+        wait 0.
+    }
     preserve.
 }
 

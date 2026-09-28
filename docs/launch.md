@@ -36,12 +36,14 @@ dq/dt = k * T + b,   k = 2 q / (m v)
 ```
 
 where `T` is total thrust and `b` is everything thrust cannot change (drag, gravity, the
-density falloff with altitude). Each tick the script measures dq/dt, subtracts the current
-thrust's share to estimate `b` (low-passed over about half a second), and commands the total
-thrust that makes `dq/dt = (qMax - q) / tau` with `tau` = 2 s. Far below the ceiling that
-thrust exceeds what the engines have, so they run full; near it, q approaches `qMax` from
-below and holds there. Because the gain `k` comes from live mass, airspeed, and q, the same
-law works across vehicles without per-rocket gains.
+density falloff with altitude). The target is `dq/dt = (qMax - q) / tau` with `tau` = 2 s. Each
+tick a kOS `PIDLOOP` on q (proportional gain `1 / tau`, derivative gain 1) yields the gap
+between that target and the measured dq/dt, and the script commands the current thrust plus a
+quarter of that gap divided by `k`. Correcting the whole gap in one tick would oscillate
+whenever the throttle update runs late, so the correction is spread over a few ticks. Far below the ceiling the result exceeds what the engines have, so
+they run full; near it, q approaches `qMax` from below and holds there. Because the gain `k`
+comes from live mass, airspeed, and q, the same law works across vehicles without per-rocket
+gains.
 
 Solid boosters cannot be throttled once lit, so only the liquid engines act on the ceiling.
 Solid thrust counts toward the commanded total and the liquids make up the rest. If the
