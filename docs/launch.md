@@ -22,14 +22,34 @@ real-time loop. The derived constants are `terrainMax`, `vMin`, `altPhase2Entry`
 (vis-viva, the atmospheric-density solve) in Rust where it is unit-tested, and lets the
 kerboscript focus on live vessel access.
 
-### Throttle: max throttle clamped by qMax
+### Throttle: full thrust under a qMax ceiling
 
-Throttle is full unless dynamic pressure would exceed `qMax`, in which case it scales down by
-`qMax / q` so dynamic pressure converges toward the cap. There is no target-TWR throttling:
-full thrust is the default, and the only thing that pulls it back is the dynamic-pressure
-ceiling. Solid boosters cannot throttle, so the ratio applies to the liquid engines only; if
-solids alone push past `qMax`, the liquids drop to `throttleMin` and q is whatever the solids
-produce until they burn out.
+Throttle is full until dynamic pressure approaches `qMax`, then comes back so q levels off at
+the ceiling instead of passing it. There is no target-TWR throttling: full thrust is the
+default, and the only thing that pulls it back is the dynamic-pressure ceiling.
+
+The controller works on the rate of change of q rather than on q itself. Thrust changes q
+only through along-track acceleration, so
+
+```
+dq/dt = k * T + b,   k = 2 q / (m v)
+```
+
+where `T` is total thrust and `b` is everything thrust cannot change (drag, gravity, the
+density falloff with altitude). The target is `dq/dt = (qMax - q) / tau` with `tau` = 2 s. Each
+tick a kOS `PIDLOOP` on q (proportional gain `1 / tau`, derivative gain 1) yields the gap
+between that target and the measured dq/dt, and the script commands the current thrust plus a
+quarter of that gap divided by `k`. Correcting the whole gap in one tick would oscillate
+whenever the throttle update runs late, so the correction is spread over a few ticks. Far below the ceiling the result exceeds what the engines have, so
+they run full; near it, q approaches `qMax` from below and holds there. Because the gain `k`
+comes from live mass, airspeed, and q, the same law works across vehicles without per-rocket
+gains.
+
+Solid boosters cannot be throttled once lit, so only the liquid engines act on the ceiling.
+Solid thrust counts toward the commanded total and the liquids make up the rest. If the
+solids alone push q past `qMax`, the liquids drop to `throttleMin` and q follows the solids
+until they burn out; a stage with only solids has no q limit at all. On a solid-heavy stack,
+set the boosters' thrust limiter in the VAB so the solids by themselves stay under `qMax`.
 
 ### Pitch: three phases on one cascade controller
 
@@ -90,21 +110,22 @@ control are unchanged from earlier versions. See the Rocket-design notes in the
 These are the user-facing mission parameters. The dashboard Launch button and the
 [send_launch example](../examples/send_launch.rs) send them; the server computes the derived
 constants and forwards everything to kOS. Defaults target a healthy Kerbin rocket going to
-80 km LKO.
+80 km LKO. They were validated under an earlier throttle law that let q reach about 33 kPa at
+`qMax = 20`; with the ceiling now enforced, the same defaults fly a lower-q ascent.
 
 | Parameter | Units | Default | Reasonable range | What it does |
 |---|---|---|---|---|
 | `finalAltitude` | m | 80000 | 75000 to 250000 | Target apoapsis. Ascent cuts off when apoapsis reaches this. Must be above the atmosphere (Kerbin: > 70 km) for the coast gate to clear. |
 | `targetInclination` | deg | 0 | 0 to 90 (magnitude >= launch latitude) | Target orbital inclination. 0 is equatorial (due east from KSC). The launch azimuth is clamped if the value is unreachable from the launch latitude. |
 | `targetLan` | deg | -1 | -1, or 0 to 360 | Longitude of ascending node to time the launch to. Negative launches immediately; otherwise the script timewarps to the window. |
-| `qMax` | kPa | 20 | 15 to 45 | Dynamic-pressure ceiling. Throttle scales back above this. Lower is gentler on the airframe but costs ascent speed; higher is more aggressive. Draggy or fragile stacks want lower; clean, sturdy ones tolerate higher. |
+| `qMax` | kPa | 20 | 15 to 45 | Dynamic-pressure ceiling. Throttle comes back as q approaches it so q levels off here, as long as the liquid engines have the authority (see the solid-booster note above). Lower is gentler on the airframe but costs ascent speed; higher is more aggressive. Draggy or fragile stacks want lower; clean, sturdy ones tolerate higher. |
 | `qAuth` | kPa | 0.7 | 0.4 to 1.5 | Aerodynamic-authority floor used to set the phase-0 airspeed gate (`vMin = sqrt(2 qAuth / rho_launch)`). Higher means climb faster (and a bit higher) before starting the turn; useful for fin-light or unstable designs. |
 | `qHigh` | kPa | 20 | ~= qMax | Dynamic pressure at which the angle-of-attack budget reaches its floor. Usually set equal to `qMax`. Lowering it makes the controller cautious about AoA earlier in the climb. |
 | `aMaxHigh` | deg | 15 | 5 to 20 | Maximum angle of attack the controller will spend at low q (the most authority it has to shape the turn). Higher turns more aggressively; too high risks drag and control losses if q is still meaningful. The cascade routinely saturates against this ceiling through late phase 1, so it has real authority over the trajectory. |
 | `aMaxLow` | deg | 2 | 1 to 4 | Minimum angle of attack near `qHigh`. Keeps a little authority to trim drift at high q without spending much AoA. |
 | `initialProfilePitch` | deg | 80 | 78 to 88 | Pitch the phase-1 profile starts at (degrees above horizon, so 80 is 10 degrees off vertical). Lower starts the gravity turn more aggressively. Higher is gentler; good for low-TWR or tippy rockets. |
 | `tApTarget` | s | 30 | 20 to 60 | Time-to-apoapsis floor that `pitch_min` holds in phase 2. Higher buys margin against thrust drops (low-TWR upper stages, flameouts) at the cost of more gravity loss; lower is closer to an optimal trajectory. Raise it for a known marginal stage. |
-| `throttleMin` | 0..1 | 0.1 | 0.05 to 0.25 | Throttle floor for the qMax controller, so engines with a high minimum-throttle threshold do not flame out when q clamps the throttle down. |
+| `throttleMin` | 0..1 | 0.1 | 0.05 to 0.25 | Throttle floor for the qMax controller, so engines with a high minimum-throttle threshold do not flame out when the ceiling pulls the throttle down. It also bounds how far the liquids can back off to offset solid thrust. |
 
 ### Tuning notes
 
