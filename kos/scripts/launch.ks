@@ -1,4 +1,5 @@
-// launch.ks handles launching a vessel into orbit, stopping at target apoapsis.
+// launch.ks handles launching a vessel into orbit: ascent to the target
+// apoapsis, then (when cfg circularize is true) a circularization burn there.
 //
 // Triggered via dispatch_listener.ks's `run_script` op with a single config
 // Lexicon (keys below). The host (src/launch_planning.rs) pre-computes the
@@ -11,6 +12,10 @@
 // pitch profile tracked with an AoA-bounded cascade. Phase 2 (low density)
 // commands pitch_min through cutoff with the AoA clamp released. Yaw is
 // open-loop launchAzimuth throughout.
+//
+// Circularization is planned here from the post-ascent orbit and flown by
+// maneuver.ks, so the whole flight runs with no host round-trip after the
+// trigger.
 
 @lazyGlobal off.
 
@@ -28,6 +33,7 @@ local terrainMax         is cfg["terrainMax"].
 local vMin               is cfg["vMin"].
 local altPhase2Entry     is cfg["altPhase2Entry"].
 local terminalPitch      is cfg["terminalPitch"].
+local circularize        is cfg["circularize"].
 
 // ship:dynamicpressure is in atmospheres; qMax/qHigh arrive in kPa.
 local kpaToAtm  is 1 / constant:atmtokpa.
@@ -35,8 +41,9 @@ local qMaxAtm   is cfg["qMax"]  * kpaToAtm.
 local qHighAtm  is cfg["qHigh"] * kpaToAtm.
 
 runOncePath("/lib/launch_helpers.ks").
+runOncePath("/lib/node.ks").
 
-print "RUNNING launch (alt=" + finalAltitude + ", inc=" + targetInclination + ", qMax=" + cfg["qMax"] + " kPa).".
+print "RUNNING launch (alt=" + finalAltitude + ", inc=" + targetInclination + ", qMax=" + cfg["qMax"] + " kPa, circularize=" + circularize + ").".
 
 local compassHeading is launchAzimuth(targetInclination, finalAltitude).
 
@@ -215,4 +222,23 @@ set ship:control:pilotMainThrottle to 0.
 unlock steering.
 sas on.
 
-print "Target apoapsis reached. Ready for circularization.".
+if not circularize {
+    print "Target apoapsis reached. Ready for circularization.".
+} else if not career():canMakeNodes {
+    print "Target apoapsis reached. Maneuver nodes unavailable; holding prograde.".
+    set sasMode to "prograde".
+} else {
+    // maneuver.ks executes nextNode, so a node left from before the ascent
+    // would fly instead of the circularization burn.
+    until not hasNode {
+        remove nextNode.
+    }
+    local circNode is nodeChangePeriapsis(apoapsis).
+    if circNode:isType("Node") {
+        add circNode.
+        print "Circularizing: " + round(circNode:prograde, 1) + " m/s in " + round(circNode:eta) + " s.".
+        runPath("/maneuver.ks").
+    } else {
+        print "Target apoapsis reached. No valid circularization node for this orbit.".
+    }
+}
