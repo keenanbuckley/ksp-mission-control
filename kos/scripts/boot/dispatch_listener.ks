@@ -13,8 +13,17 @@ wait until ship:unpacked.
 // deploy tool's contract, so absolute paths like "/launch.ks" resolve.
 switch to 0.
 
-local MC_TAG       is "mc".
-local PASSIVE_POLL is 5.   // seconds between vessel-change re-checks
+local MC_TAG           is "mc".
+local PASSIVE_POLL     is 5.   // seconds between vessel-change re-checks
+local HEARTBEAT_PERIOD is 1.   // real-time seconds between beats while a script runs
+
+// Identifies this CPU session. The uid separates CPUs that boot in the same
+// tick after a scene load; the realtime part changes on every reboot, which is
+// how the server tells a reloaded CPU from the one that was running a script.
+local BOOT_ID is core:part:uid + "/" + kuniverse:realtime.
+
+local hbPath is "".   // script currently running, or "" while idle
+local hbNext is 0.
 
 // Argument shape each runnable script expects: "lexicon" takes a single config
 // Lexicon, "none" takes no args.
@@ -33,6 +42,21 @@ function sendEvent {
 function ackOp {
     parameter op.
     sendEvent(lexicon("kind", "command_ack", "op", op)).
+}
+
+function sendHeartbeat {
+    sendEvent(lexicon(
+        "kind", "heartbeat",
+        "path", hbPath,
+        "boot", BOOT_ID,
+        "active", kuniverse:activevessel = ship
+    )).
+}
+
+function rejectScript {
+    parameter p, reason.
+    print "dispatch_listener: " + reason + ": /" + p + "; dropping.".
+    sendEvent(lexicon("kind", "script_done", "path", p, "ok", false, "reason", reason, "boot", BOOT_ID)).
 }
 
 function otherMcHolderExists {
@@ -80,7 +104,9 @@ function handleMessage {
         return.
     }
     local op is content:op.
-    if op = "toggle_ag" {
+    if op = "ping" {
+        sendHeartbeat().
+    } else if op = "toggle_ag" {
         if not content:haskey("n") {
             print "dispatch_listener: toggle_ag missing n; dropping.".
             return.
@@ -107,39 +133,44 @@ function handleMessage {
         }
         local p is content:path.
         if not SCRIPT_SHAPE:haskey(p) {
-            print "dispatch_listener: unknown script: /" + p + "; dropping.".
+            rejectScript(p, "unknown script").
             return.
         }
         if not exists("/" + p) {
-            print "dispatch_listener: script not found: /" + p + "; dropping.".
+            rejectScript(p, "script not found").
             return.
         }
         local shape is SCRIPT_SHAPE[p].
         if shape = "none" {
             ackOp(op).
             print "dispatch_listener: running /" + p + ".".
+            set hbPath to p.
+            set hbNext to 0.
             runPath("/" + p).
         } else if shape = "lexicon" {
             if not content:haskey("args") {
-                print "dispatch_listener: run_script missing args; dropping.".
+                rejectScript(p, "run_script missing args").
                 return.
             }
             local a is content:args.
             if not a:istype("Lexicon") {
-                print "dispatch_listener: run_script args must be a lexicon; dropping.".
+                rejectScript(p, "run_script args must be a lexicon").
                 return.
             }
             ackOp(op).
             print "dispatch_listener: running /" + p + ".".
+            set hbPath to p.
+            set hbNext to 0.
             runPath("/" + p, a).
         } else {
-            print "dispatch_listener: unknown shape " + shape + " for /" + p + "; dropping.".
+            rejectScript(p, "unknown shape " + shape).
             return.
         }
+        set hbPath to "".
         print "dispatch_listener: /" + p + " returned.".
-        // kerboscript has no try/catch, so a script that aborts mid-flight
-        // never reaches this line and the server sees no script_done event.
-        sendEvent(lexicon("kind", "script_done", "path", p, "ok", true)).
+        // A script that aborts never gets here; the server notices the
+        // heartbeat stopping instead.
+        sendEvent(lexicon("kind", "script_done", "path", p, "ok", true, "boot", BOOT_ID)).
     } else {
         print "dispatch_listener: unknown op '" + op + "'; dropping.".
     }
@@ -165,6 +196,14 @@ function runPassive {
             runActive().
         }
     }
+}
+
+// Beats on real time, not UT: under rails warp one physics tick can span
+// thousands of game seconds, and a UT schedule would fire on every tick.
+when hbPath <> "" and kuniverse:realtime > hbNext then {
+    sendHeartbeat().
+    set hbNext to kuniverse:realtime + HEARTBEAT_PERIOD.
+    return true.
 }
 
 if otherMcHolderExists() {
