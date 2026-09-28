@@ -28,9 +28,9 @@ Pre-built Linux x86_64 binaries are attached to each tagged release on the [Rele
 
 ```sh
 curl -L -o ksp-mission-control.tar.gz \
-  https://github.com/keenanbuckley/ksp-mission-control/releases/latest/download/ksp-mission-control-v0.1.0-linux-x86_64.tar.gz
+  https://github.com/keenanbuckley/ksp-mission-control/releases/latest/download/ksp-mission-control-v0.2.0-linux-x86_64.tar.gz
 tar -xzf ksp-mission-control.tar.gz
-cd ksp-mission-control-v0.1.0-linux-x86_64
+cd ksp-mission-control-v0.2.0-linux-x86_64
 ./deploy-kos             # writes kerboscript into KSP Ships/Script/
 ./ksp-mission-control    # starts the server on http://127.0.0.1:8080
 ```
