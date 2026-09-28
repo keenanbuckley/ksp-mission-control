@@ -35,7 +35,7 @@ cd ksp-mission-control-v0.1.0-linux-x86_64
 ./ksp-mission-control    # starts the server on http://127.0.0.1:8080
 ```
 
-On first run, `deploy-kos` prompts for the KSP `Ships/Script/` directory and writes the answer to `.kos.toml` in the current directory; subsequent runs reuse it. The destination can also be passed as `--path <dir>` or set via `KSP_SCRIPT_DIR=<dir>`. The scripts land under `Ships/Script/` (which kOS exposes as the archive volume, `0:`), preserving the `boot/` and `lib/` subdirectories.
+On first run, `deploy-kos` prompts for the KSP `Ships/Script/` directory and writes the answer to `.kos.toml` in the current directory; subsequent runs reuse it. The destination can also be passed as `--path <dir>` or set via `KSP_SCRIPT_DIR=<dir>`. The scripts land under `Ships/Script/` (which kOS exposes as the archive volume, `0:`), preserving the `boot/` and `lib/` subdirectories. Rerun `deploy-kos` after every upgrade: the server and the dispatcher script share a message protocol, and an out-of-date dispatcher shows up in the dashboard as `kOS: no heartbeat`.
 
 In-game, on the kOS processor of the vessel you want to drive, set its boot file to the deployed `boot/dispatch_listener.ks` (path `0:/boot/dispatch_listener.ks` on the archive volume).
 
@@ -76,9 +76,9 @@ The ascent itself is a regime-aware, closed-loop gravity turn. See [docs/launch.
 
 ## Architecture
 
-The server is a single Rust process. Modules wired by tokio channels: `src/krpc.rs` owns the kRPC client and streams and publishes telemetry over a `broadcast::Sender`; `src/web.rs` is the Axum WebSocket handler that fans telemetry out to connected browsers; `src/main.rs` is the wiring. `src/planning.rs` holds the server-side circularization math, `src/launch_planning.rs` pre-computes the launch script's ascent constants, and `src/control.rs` holds the kIPC command dispatcher.
+The server is a single Rust process. Modules wired by tokio channels: `src/krpc.rs` owns the kRPC client and streams and publishes telemetry over a `broadcast::Sender`; `src/web.rs` is the Axum WebSocket handler that fans telemetry out to connected browsers; `src/main.rs` is the wiring. `src/planning.rs` holds the server-side circularization math, `src/launch_planning.rs` pre-computes the launch script's ascent constants, `src/control.rs` holds the kIPC command dispatcher, and `src/script_watchdog.rs` turns kOS heartbeats into script failures and the kOS link state.
 
-The browser is plain HTML + vanilla JS (`static/index.html`), no build step. kOS scripts live under `kos/scripts/` with `boot/` and `lib/` subdirectories. The server pushes named ops (`run_script`, `plan_circ`, `toggle_ag`) over kIPC; the kerboscript dispatcher replies with `command_ack`, `script_done`, and `command_error` events.
+The browser is plain HTML + vanilla JS (`static/index.html`), no build step. kOS scripts live under `kos/scripts/` with `boot/` and `lib/` subdirectories. The server pushes named ops (`run_script`, `plan_circ`, `toggle_ag`) over kIPC; the kerboscript dispatcher replies with `command_ack`, `script_done`, and `command_error` events. The dispatcher answers a server ping every couple of seconds while idle and sends a heartbeat every second while a script runs. When heartbeats stop for 10 seconds of unpaused game time (power loss, a crashed script, a destroyed CPU) or UT jumps backwards (a save was loaded), the server reports the script as `script_done` with `ok: false` and a reason, since a dead kOS CPU can't send that itself.
 
 ## License
 

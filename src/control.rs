@@ -98,7 +98,7 @@ pub async fn send_command(client: &Arc<Client>, json: &str) -> Result<()> {
         .get_parts_tagged(&vessel, "mc".to_string())
         .await
         .context("get parts tagged \"mc\"")?;
-    if parts.len() != 1 {
+    if parts.len() > 1 {
         warn!(
             found = parts.len(),
             "expected exactly one mc-tagged part on active vessel"

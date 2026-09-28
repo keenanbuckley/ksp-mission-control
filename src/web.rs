@@ -104,10 +104,11 @@ fn handle_inbound(text: &str, command_tx: &mpsc::Sender<serde_json::Value>) {
 fn status_json(status: &ConnStatus) -> serde_json::Value {
     match status {
         ConnStatus::Disconnected => json!({ "kind": "status", "connected": false }),
-        ConnStatus::Connected { calendar } => json!({
+        ConnStatus::Connected { calendar, kos } => json!({
             "kind": "status",
             "connected": true,
             "calendar": calendar,
+            "kos": kos,
         }),
     }
 }

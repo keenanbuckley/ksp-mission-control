@@ -1,5 +1,5 @@
-use std::sync::Arc;
-use std::time::Duration;
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
 use krpc_client::{
@@ -7,16 +7,19 @@ use krpc_client::{
     stream::Stream,
     Client,
 };
+use ksp_mission_control::script_watchdog::{Failure, Heartbeat, KosLink, ScriptWatchdog};
 use ksp_mission_control::{control, launch_planning, planning};
 use serde::Serialize;
 use serde_json::json;
 use tokio::sync::{broadcast, mpsc, watch};
-use tracing::{info, warn};
+use tokio::time::MissedTickBehavior;
+use tracing::{debug, info, warn};
 
 const STREAM_RATE_HZ: f32 = 5.0;
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(2);
 const HEARTBEAT_TIMEOUT: Duration = Duration::from_secs(15);
 const INBOX_POLL_INTERVAL: Duration = Duration::from_millis(200);
+const KOS_PING_INTERVAL: Duration = Duration::from_secs(2);
 const INITIAL_BACKOFF: Duration = Duration::from_secs(1);
 const MAX_BACKOFF: Duration = Duration::from_secs(30);
 
@@ -27,7 +30,12 @@ pub enum OutboundEvent {
     NodePlanned { dv: f64, ut: f64 },
     CommandAck { op: String },
     CommandError { op: String, reason: String },
-    ScriptDone { path: String, ok: bool },
+    ScriptDone {
+        path: String,
+        ok: bool,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        reason: Option<String>,
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize)]
@@ -39,7 +47,7 @@ pub struct Calendar {
 #[derive(Clone, Debug, PartialEq)]
 pub enum ConnStatus {
     Disconnected,
-    Connected { calendar: Calendar },
+    Connected { calendar: Calendar, kos: KosLink },
 }
 
 const KERBIN_CALENDAR: Calendar = Calendar {
@@ -77,6 +85,9 @@ pub async fn run_telemetry_supervisor(
     mut command_rx: mpsc::Receiver<serde_json::Value>,
 ) {
     let mut backoff = INITIAL_BACKOFF;
+    // Outlives each kRPC session: kOS keeps flying through a kRPC hiccup, and
+    // a KSP restart shows up as a UT rewind or as silence.
+    let watchdog = Mutex::new(ScriptWatchdog::new());
     loop {
         status_tx.send_if_modified(|s| {
             if matches!(s, ConnStatus::Disconnected) {
@@ -118,7 +129,10 @@ pub async fn run_telemetry_supervisor(
             "calendar detected"
         );
 
-        let connected = ConnStatus::Connected { calendar };
+        let connected = ConnStatus::Connected {
+            calendar,
+            kos: lock(&watchdog).link().clone(),
+        };
         status_tx.send_if_modified(|s| {
             if *s == connected {
                 false
@@ -129,7 +143,15 @@ pub async fn run_telemetry_supervisor(
         });
         backoff = INITIAL_BACKOFF;
 
-        if let Err(e) = run_session(client, event_tx.clone(), &mut command_rx).await {
+        if let Err(e) = run_session(
+            client,
+            event_tx.clone(),
+            &mut command_rx,
+            &watchdog,
+            &status_tx,
+        )
+        .await
+        {
             warn!(error = format!("{e:#}"), "kRPC session ended; reconnecting");
         }
     }
@@ -143,6 +165,8 @@ async fn run_session(
     client: Arc<Client>,
     tx: broadcast::Sender<OutboundEvent>,
     command_rx: &mut mpsc::Receiver<serde_json::Value>,
+    watchdog: &Mutex<ScriptWatchdog>,
+    status_tx: &watch::Sender<ConnStatus>,
 ) -> Result<()> {
     let space_center = SpaceCenter::new(client.clone());
     let krpc = KRPC::new(client.clone());
@@ -150,17 +174,46 @@ async fn run_session(
     stream.set_rate(STREAM_RATE_HZ).await?;
 
     tokio::select! {
-        res = run_stream_loop(&stream, &tx) => res,
+        res = run_stream_loop(&stream, &tx, watchdog, status_tx) => res,
         res = run_heartbeat(&krpc) => res,
-        res = run_dispatcher(&client, command_rx, &tx) => res,
-        res = run_inbox_loop(&client, &tx) => res,
+        res = run_dispatcher(&client, command_rx, &tx, watchdog) => res,
+        res = run_inbox_loop(&client, &tx, watchdog, status_tx) => res,
+        res = run_kos_ping_loop(&client, watchdog) => res,
     }
+}
+
+/// The lock is only held across synchronous watchdog calls, never an await.
+fn lock(watchdog: &Mutex<ScriptWatchdog>) -> MutexGuard<'_, ScriptWatchdog> {
+    watchdog.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+fn emit_failures(tx: &broadcast::Sender<OutboundEvent>, failures: Vec<Failure>) {
+    for f in failures {
+        warn!(path = %f.path, reason = f.reason, "script declared dead");
+        let _ = tx.send(OutboundEvent::ScriptDone {
+            path: f.path,
+            ok: false,
+            reason: Some(f.reason.to_string()),
+        });
+    }
+}
+
+fn publish_link(status_tx: &watch::Sender<ConnStatus>, link: KosLink) {
+    status_tx.send_if_modified(|s| match s {
+        ConnStatus::Connected { kos, .. } if *kos != link => {
+            info!(up = link.up, running = ?link.running, "kOS link changed");
+            *kos = link;
+            true
+        }
+        _ => false,
+    });
 }
 
 async fn run_dispatcher(
     client: &Arc<Client>,
     command_rx: &mut mpsc::Receiver<serde_json::Value>,
     event_tx: &broadcast::Sender<OutboundEvent>,
+    watchdog: &Mutex<ScriptWatchdog>,
 ) -> Result<()> {
     while let Some(cmd) = command_rx.recv().await {
         if !cmd.is_object() {
@@ -172,6 +225,11 @@ async fn run_dispatcher(
             .and_then(|v| v.as_str())
             .unwrap_or("unknown")
             .to_string();
+        let script_path = if op == "run_script" {
+            cmd.get("path").and_then(|v| v.as_str()).map(str::to_owned)
+        } else {
+            None
+        };
         let mut planned: Option<planning::CircPlan> = None;
         let payload = match op.as_str() {
             "plan_circ" => match planning::plan_circ(client).await {
@@ -234,6 +292,9 @@ async fn run_dispatcher(
             let _ = event_tx.send(OutboundEvent::CommandError { op, reason });
             continue;
         }
+        if let Some(path) = script_path {
+            lock(watchdog).on_dispatch(path);
+        }
         if let Some(plan) = planned {
             let _ = event_tx.send(OutboundEvent::NodePlanned {
                 dv: plan.dv,
@@ -247,6 +308,8 @@ async fn run_dispatcher(
 async fn run_inbox_loop(
     client: &Arc<Client>,
     event_tx: &broadcast::Sender<OutboundEvent>,
+    watchdog: &Mutex<ScriptWatchdog>,
+    status_tx: &watch::Sender<ConnStatus>,
 ) -> Result<()> {
     let kipc = KIPC::new(client.clone());
     let mut tick = tokio::time::interval(INBOX_POLL_INTERVAL);
@@ -265,14 +328,60 @@ async fn run_inbox_loop(
             if raw.is_empty() {
                 break;
             }
-            if let Some(event) = parse_inbound(&raw) {
-                let _ = event_tx.send(event);
+            match parse_inbound(&raw) {
+                Some(Inbound::Event(event)) => {
+                    let _ = event_tx.send(event);
+                }
+                Some(Inbound::ScriptDone {
+                    path,
+                    ok,
+                    reason,
+                    boot,
+                }) => {
+                    let link = {
+                        let mut wd = lock(watchdog);
+                        wd.on_done(&path, boot.as_deref());
+                        wd.link().clone()
+                    };
+                    publish_link(status_tx, link);
+                    let _ = event_tx.send(OutboundEvent::ScriptDone { path, ok, reason });
+                }
+                Some(Inbound::Heartbeat { boot, path, active }) => {
+                    let link = {
+                        let mut wd = lock(watchdog);
+                        wd.on_heartbeat(Heartbeat {
+                            boot: &boot,
+                            path: path.as_deref(),
+                            active,
+                        });
+                        wd.link().clone()
+                    };
+                    publish_link(status_tx, link);
+                }
+                None => {}
             }
         }
     }
 }
 
-fn parse_inbound(raw: &str) -> Option<OutboundEvent> {
+/// A decoded kIPC message. `ScriptDone` and `Heartbeat` carry the dispatcher's
+/// boot id, which the watchdog needs and the browser doesn't.
+enum Inbound {
+    Event(OutboundEvent),
+    ScriptDone {
+        path: String,
+        ok: bool,
+        reason: Option<String>,
+        boot: Option<String>,
+    },
+    Heartbeat {
+        boot: String,
+        path: Option<String>,
+        active: bool,
+    },
+}
+
+fn parse_inbound(raw: &str) -> Option<Inbound> {
     let payload = match control::decode_dict(raw) {
         Ok(p) => p,
         Err(e) => {
@@ -280,17 +389,29 @@ fn parse_inbound(raw: &str) -> Option<OutboundEvent> {
             return None;
         }
     };
-    let kind = payload.get("kind").and_then(|v| v.as_str())?;
+    let str_field = |key: &str| payload.get(key).and_then(|v| v.as_str());
+    let kind = str_field("kind")?;
     match kind {
         "command_ack" => {
-            let op = payload.get("op").and_then(|v| v.as_str())?.to_string();
-            Some(OutboundEvent::CommandAck { op })
+            let op = str_field("op")?.to_string();
+            Some(Inbound::Event(OutboundEvent::CommandAck { op }))
         }
-        "script_done" => {
-            let path = payload.get("path").and_then(|v| v.as_str())?.to_string();
-            let ok = payload.get("ok").and_then(|v| v.as_bool()).unwrap_or(true);
-            Some(OutboundEvent::ScriptDone { path, ok })
-        }
+        "script_done" => Some(Inbound::ScriptDone {
+            path: str_field("path")?.to_string(),
+            ok: payload.get("ok").and_then(|v| v.as_bool()).unwrap_or(true),
+            reason: str_field("reason").map(str::to_owned),
+            boot: str_field("boot").map(str::to_owned),
+        }),
+        "heartbeat" => Some(Inbound::Heartbeat {
+            boot: str_field("boot")?.to_string(),
+            path: str_field("path")
+                .filter(|p| !p.is_empty())
+                .map(str::to_owned),
+            active: payload
+                .get("active")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false),
+        }),
         other => {
             warn!(kind = %other, "inbox: unknown event kind; dropping");
             None
@@ -301,11 +422,39 @@ fn parse_inbound(raw: &str) -> Option<OutboundEvent> {
 async fn run_stream_loop(
     stream: &Stream<f64>,
     tx: &broadcast::Sender<OutboundEvent>,
+    watchdog: &Mutex<ScriptWatchdog>,
+    status_tx: &watch::Sender<ConnStatus>,
 ) -> Result<()> {
     loop {
         stream.wait().await;
         let ut = stream.get().await?;
         let _ = tx.send(OutboundEvent::Ut(ut));
+        let (failures, link) = {
+            let mut wd = lock(watchdog);
+            (wd.on_ut(ut, Instant::now()), wd.link().clone())
+        };
+        emit_failures(tx, failures);
+        publish_link(status_tx, link);
+    }
+}
+
+/// An idle dispatcher only heartbeats in reply to a ping. kIPC's outbound
+/// queue is unbounded and persisted into the save file, so unsolicited idle
+/// beats with no server draining them would pile up there.
+async fn run_kos_ping_loop(client: &Arc<Client>, watchdog: &Mutex<ScriptWatchdog>) -> Result<()> {
+    let ping = control::encode_dict(json!({ "op": "ping" }))?;
+    let mut tick = tokio::time::interval(KOS_PING_INTERVAL);
+    tick.set_missed_tick_behavior(MissedTickBehavior::Delay);
+    loop {
+        tick.tick().await;
+        if !lock(watchdog).ping_due() {
+            continue;
+        }
+        // Routine outside flight or on a vessel without an mc CPU; the link
+        // goes down on its own when replies stop.
+        if let Err(e) = control::send_command(client, &ping).await {
+            debug!(error = format!("{e:#}"), "kOS ping not sent");
+        }
     }
 }
 

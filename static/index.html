@@ -21,6 +21,7 @@
     <div class="ut" id="ut">--</div>
     <div class="status" id="server">connecting...</div>
     <div class="status" id="ksp">KSP: unknown</div>
+    <div class="status" id="kos">kOS: unknown</div>
     <div class="status" id="planned"></div>
     <div class="controls">
       <button id="toggle-ag1" disabled>Toggle AG1</button>
@@ -33,6 +34,7 @@
     const utEl = document.getElementById("ut");
     const serverEl = document.getElementById("server");
     const kspEl = document.getElementById("ksp");
+    const kosEl = document.getElementById("kos");
     const plannedEl = document.getElementById("planned");
     const toggleAg1Btn = document.getElementById("toggle-ag1");
     const launchBtn = document.getElementById("launch");
@@ -57,11 +59,17 @@
     const MAX_BACKOFF_MS = 10000;
     let backoffMs = INITIAL_BACKOFF_MS;
     let activeWs = null;
-    function setKspConnected(connected) {
-      toggleAg1Btn.disabled = !connected;
-      launchBtn.disabled = !connected;
-      planCircBtn.disabled = !connected;
-      executeNodeBtn.disabled = !connected;
+    // Every command goes through the kOS dispatcher, so the buttons follow
+    // the kOS link rather than the kRPC connection alone.
+    function setCommandsEnabled(enabled) {
+      toggleAg1Btn.disabled = !enabled;
+      launchBtn.disabled = !enabled;
+      planCircBtn.disabled = !enabled;
+      executeNodeBtn.disabled = !enabled;
+    }
+    function kosText(kos) {
+      if (!kos.up) return "kOS: no heartbeat (dispatcher not running, or kOS scripts need redeploying)";
+      return kos.running ? `kOS: running ${kos.running}` : "kOS: ready";
     }
     toggleAg1Btn.addEventListener("click", () => {
       if (!activeWs || activeWs.readyState !== WebSocket.OPEN) return;
@@ -120,7 +128,8 @@
       ws.onclose = () => {
         serverEl.textContent = `disconnected, retrying in ${backoffMs / 1000}s`;
         kspEl.textContent = "KSP: unknown";
-        setKspConnected(false);
+        kosEl.textContent = "kOS: unknown";
+        setCommandsEnabled(false);
         setTimeout(connect, backoffMs);
         backoffMs = Math.min(backoffMs * 2, MAX_BACKOFF_MS);
       };
@@ -130,10 +139,12 @@
           if (frame.connected) {
             calendar = frame.calendar;
             kspEl.textContent = "KSP: connected";
-            setKspConnected(true);
+            kosEl.textContent = kosText(frame.kos);
+            setCommandsEnabled(frame.kos.up);
           } else {
             kspEl.textContent = "KSP: not connected";
-            setKspConnected(false);
+            kosEl.textContent = "kOS: unknown";
+            setCommandsEnabled(false);
           }
         } else if (frame.kind === "ut" && calendar) {
           utEl.textContent = formatUT(frame.value);
